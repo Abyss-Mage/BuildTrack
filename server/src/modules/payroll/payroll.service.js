@@ -52,14 +52,22 @@ export class PayrollService {
   }
 
   static async createPayroll(data, createdById) {
-    const period = (data.payroll_period || data.payroll_month || '').trim();
-    if (!data.user_id || !period) {
-      throw ApiError.badRequest('Employee (user_id) and weekly payroll period are required');
+    if (!data.user_id) {
+      throw ApiError.badRequest('Employee selection is required');
     }
+    if (!data.start_date || !data.end_date) {
+      throw ApiError.badRequest('Wages From Date and To Date are required');
+    }
+
+    const period = (data.payroll_period && data.payroll_period.trim().length > 0)
+      ? data.payroll_period.trim()
+      : `${data.start_date} to ${data.end_date}`;
+
+    data.payroll_period = period;
 
     const existing = await PayrollRepository.findByUserAndPeriod(data.user_id, period);
     if (existing) {
-      throw ApiError.conflict(`A payroll record for this employee already exists for period ${period}`);
+      throw ApiError.conflict(`A wage record for this employee already exists for ${period}`);
     }
 
     return PayrollRepository.create(data, createdById);
@@ -97,11 +105,9 @@ export class PayrollService {
    * Builds the formatted WhatsApp message for an employee payroll record
    */
   static formatWhatsAppText(item) {
-    const periodLabel = item.payroll_period || item.payroll_month;
-    const readablePeriod = formatPeriodLabel(periodLabel);
-    const dateRangeStr = item.start_date && item.end_date
-      ? `(${item.start_date} to ${item.end_date})`
-      : '';
+    const datesStr = item.start_date && item.end_date
+      ? `${item.start_date} to ${item.end_date}`
+      : item.payroll_period || item.payroll_month || 'Current';
 
     const netFormatted = Number(item.net_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const baseFormatted = Number(item.base_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 });
@@ -111,12 +117,12 @@ export class PayrollService {
     const isPaid = item.status === 'paid';
 
     let msg = `🏗️ *BUILDTRACK CONSTRUCTION ERP*\n`;
-    msg += `📄 *WEEKLY WAGES / PAYSLIP*\n`;
-    msg += `🗓️ *Period:* ${readablePeriod} ${dateRangeStr}\n\n`;
+    msg += `📄 *SITE WAGE STATEMENT / PAYSLIP*\n`;
+    msg += `🗓️ *Wages Period:* ${datesStr}\n\n`;
     msg += `Hello *${item.employee_name}*,\n`;
-    msg += `Your site wages for *${readablePeriod}* have been processed:\n\n`;
+    msg += `Your site wages from *${datesStr}* have been processed:\n\n`;
     msg += `💼 *Designation:* ${roleTitle}\n`;
-    msg += `💵 *Weekly Base Wage:* ₹${baseFormatted}\n`;
+    msg += `💵 *Base Wage:* ₹${baseFormatted}\n`;
     if (Number(item.allowances) > 0) {
       msg += `➕ *Site Overtime / Allowances:* ₹${allowFormatted}\n`;
     }
@@ -134,7 +140,7 @@ export class PayrollService {
     if (item.payment_date) {
       msg += `📅 *Date of Payment:* ${item.payment_date}\n`;
     }
-    msg += `\nFor any queries regarding weekly hours or rate calculations, please contact the Site Accounts Office.\n`;
+    msg += `\nFor any queries regarding hours or rate calculations, please contact the Site Accounts Office.\n`;
     msg += `_Thank you for your hard work and dedication!_`;
 
     return msg;
@@ -162,23 +168,36 @@ export class PayrollService {
       status: item.status,
       netSalary: item.net_salary,
       period: item.payroll_period || item.payroll_month,
+      startDate: item.start_date,
+      endDate: item.end_date,
     };
   }
 
   /**
-   * Broadcast WhatsApp messages for all employees in a given period/week
+   * Broadcast WhatsApp messages for all employees in a given period/date range
    */
-  static async getMonthlyBroadcastList(periodOrMonth) {
-    const records = await PayrollRepository.findAll({ period: periodOrMonth });
+  static async getMonthlyBroadcastList(query = {}) {
+    let filters = {};
+    if (typeof query === 'string') {
+      filters = { period: query };
+    } else if (typeof query === 'object') {
+      filters = { ...query };
+    }
+
+    const records = await PayrollRepository.findAll(filters);
     const broadcastItems = records.map((r) => this.getWhatsAppPayload(r));
 
     const totalEmployees = broadcastItems.length;
     const withValidPhone = broadcastItems.filter((i) => i.hasPhone).length;
     const totalAmount = records.reduce((acc, curr) => acc + Number(curr.net_salary), 0);
 
+    const rangeLabel = filters.startDate && filters.endDate
+      ? `${filters.startDate} to ${filters.endDate}`
+      : filters.period || 'All Wages';
+
     return {
-      period: periodOrMonth,
-      periodLabel: formatPeriodLabel(periodOrMonth),
+      period: rangeLabel,
+      periodLabel: rangeLabel,
       totalEmployees,
       withValidPhone,
       missingPhoneCount: totalEmployees - withValidPhone,

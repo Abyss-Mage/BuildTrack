@@ -41,10 +41,14 @@ export class UsersService {
     await this.getUserById(id);
 
     const updates = { ...updateData };
-    if (updates.password) {
+    if (updates.password && updates.password.trim().length > 0) {
       const salt = await bcrypt.genSalt(10);
       updates.password_hash = await bcrypt.hash(updates.password, salt);
-      delete updates.password;
+    }
+    delete updates.password;
+
+    if (updates.phone !== undefined) {
+      updates.phone = updates.phone ? updates.phone.trim() : null;
     }
 
     if (updates.approval_limit !== undefined) {

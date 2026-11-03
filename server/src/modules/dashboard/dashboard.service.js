@@ -10,18 +10,40 @@ export class DashboardService {
       params.push(Number(filters.projectId));
     }
 
-    // Timeframe conditions
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}%`;
+    // Date range filter support
+    let dateFilter = '';
+    let dateParams = [];
+    if (filters.startDate) {
+      dateFilter += ` AND e.expense_date >= ?`;
+      dateParams.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      dateFilter += ` AND e.expense_date <= ?`;
+      dateParams.push(filters.endDate);
+    }
 
-    const monthlySpendResult = await db.getOne(
-      `SELECT COALESCE(SUM(e.amount), 0) as total_month
-       FROM expenses e
-       WHERE e.status IN ('approved', 'processed')
-       AND e.expense_date LIKE ?
-       ${projectScope}`,
-      [currentMonth, ...params]
-    );
+    let spendResult;
+    if (filters.startDate || filters.endDate) {
+      spendResult = await db.getOne(
+        `SELECT COALESCE(SUM(e.amount), 0) as total_range
+         FROM expenses e
+         WHERE e.status IN ('approved', 'processed')
+         ${projectScope}
+         ${dateFilter}`,
+        [...params, ...dateParams]
+      );
+    } else {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}%`;
+      spendResult = await db.getOne(
+        `SELECT COALESCE(SUM(e.amount), 0) as total_range
+         FROM expenses e
+         WHERE e.status IN ('approved', 'processed')
+         AND e.expense_date LIKE ?
+         ${projectScope}`,
+        [currentMonth, ...params]
+      );
+    }
 
     // Total spend in selected scope
     const totalSpendResult = await db.getOne(
@@ -37,8 +59,9 @@ export class DashboardService {
       `SELECT COUNT(*) as pending_count, COALESCE(SUM(e.amount), 0) as pending_amount
        FROM expenses e
        WHERE e.status = 'pending'
-       ${projectScope}`,
-      params
+       ${projectScope}
+       ${dateFilter}`,
+      [...params, ...dateParams]
     );
 
     // Approved (waiting for accountant processing)
@@ -46,8 +69,9 @@ export class DashboardService {
       `SELECT COUNT(*) as approved_count, COALESCE(SUM(e.amount), 0) as approved_amount
        FROM expenses e
        WHERE e.status = 'approved'
-       ${projectScope}`,
-      params
+       ${projectScope}
+       ${dateFilter}`,
+      [...params, ...dateParams]
     );
 
     // Active projects count
@@ -60,13 +84,14 @@ export class DashboardService {
     const projectsResult = await db.getOne(activeProjectsSql, activeParams);
 
     return {
-      monthlySpend: Number(monthlySpendResult?.total_month || 0),
+      monthlySpend: Number(spendResult?.total_range || 0),
       totalSpend: Number(totalSpendResult?.total_all || 0),
       pendingCount: Number(pendingResult?.pending_count || 0),
       pendingAmount: Number(pendingResult?.pending_amount || 0),
       approvedCount: Number(approvedResult?.approved_count || 0),
       approvedAmount: Number(approvedResult?.approved_amount || 0),
       activeProjects: Number(projectsResult?.active_count || 0),
+      isCustomDateRange: Boolean(filters.startDate || filters.endDate),
     };
   }
 
@@ -79,12 +104,21 @@ export class DashboardService {
       params.push(Number(filters.projectId));
     }
 
-    if (filters.timeframe === 'month') {
-      projectScope += ` AND e.expense_date >= date('now', '-1 month')`;
-    } else if (filters.timeframe === 'quarter') {
-      projectScope += ` AND e.expense_date >= date('now', '-3 month')`;
-    } else if (filters.timeframe === 'year') {
-      projectScope += ` AND e.expense_date >= date('now', '-1 year')`;
+    if (filters.startDate) {
+      projectScope += ` AND e.expense_date >= ?`;
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      projectScope += ` AND e.expense_date <= ?`;
+      params.push(filters.endDate);
+    } else if (!filters.startDate) {
+      if (filters.timeframe === 'month') {
+        projectScope += ` AND e.expense_date >= date('now', '-1 month')`;
+      } else if (filters.timeframe === 'quarter') {
+        projectScope += ` AND e.expense_date >= date('now', '-3 month')`;
+      } else if (filters.timeframe === 'year') {
+        projectScope += ` AND e.expense_date >= date('now', '-1 year')`;
+      }
     }
 
     const sql = `
@@ -184,6 +218,15 @@ export class DashboardService {
     if (filters.projectId) {
       projectScope += ` AND e.project_id = ?`;
       params.push(Number(filters.projectId));
+    }
+
+    if (filters.startDate) {
+      projectScope += ` AND e.expense_date >= ?`;
+      params.push(filters.startDate);
+    }
+    if (filters.endDate) {
+      projectScope += ` AND e.expense_date <= ?`;
+      params.push(filters.endDate);
     }
 
     const sql = `

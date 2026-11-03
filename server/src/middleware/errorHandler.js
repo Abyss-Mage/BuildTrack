@@ -12,7 +12,8 @@ export function errorHandler(err, req, res, next) {
     errors = err.errors;
   } else if (err.name === 'ZodError') {
     statusCode = 400;
-    message = 'Validation Error';
+    const detailMsg = err.errors.map((e) => `${e.path.slice(-1)[0] || 'field'}: ${e.message}`).join(', ');
+    message = detailMsg || 'Validation Error';
     errors = err.errors.map((e) => ({
       field: e.path.join('.'),
       message: e.message,

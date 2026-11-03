@@ -4,11 +4,6 @@ import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import Modal from '../components/ui/Modal';
 import {
-  getISOWeekDetails,
-  getRecentWeeks,
-  formatPeriodDisplay,
-} from '../utils/dateUtils';
-import {
   Banknote,
   PlusCircle,
   Search,
@@ -29,6 +24,7 @@ import {
   User,
   ArrowUpRight,
   ExternalLink,
+  X,
 } from 'lucide-react';
 
 export function Payroll() {
@@ -37,10 +33,16 @@ export function Payroll() {
 
   const isFinanceOrAdmin = ['admin', 'accountant'].includes(user?.role);
 
-  // Initialize with current ISO week
-  const initialWeek = getISOWeekDetails();
-  const [selectedPeriod, setSelectedPeriod] = useState(initialWeek.code);
-  const weekOptions = getRecentWeeks();
+  // Default dates: current week (Monday to Sunday)
+  const today = new Date();
+  const day = today.getDay() === 0 ? 7 : today.getDay();
+  const mon = new Date(today);
+  mon.setDate(today.getDate() - (day - 1));
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+
+  const defaultStart = mon.toISOString().slice(0, 10);
+  const defaultEnd = sun.toISOString().slice(0, 10);
 
   const [payrolls, setPayrolls] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -52,6 +54,8 @@ export function Payroll() {
     search: '',
     status: '',
     paymentMethod: '',
+    startDate: '',
+    endDate: '',
   });
 
   // Create / Edit Modal State
@@ -59,9 +63,9 @@ export function Payroll() {
   const [editingPayroll, setEditingPayroll] = useState(null);
   const [formData, setFormData] = useState({
     user_id: '',
-    payroll_period: initialWeek.code,
-    start_date: initialWeek.startDate,
-    end_date: initialWeek.endDate,
+    start_date: defaultStart,
+    end_date: defaultEnd,
+    payroll_period: '',
     base_salary: '',
     allowances: '0',
     deductions: '0',
@@ -97,22 +101,24 @@ export function Payroll() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const params = { period: selectedPeriod };
+      const params = {};
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.paymentMethod) params.paymentMethod = filters.paymentMethod;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
 
       const [listRes, sumRes] = await Promise.all([
         api.get('/payroll', { params }),
         isFinanceOrAdmin
-          ? api.get('/payroll/summary', { params: { period: selectedPeriod } })
+          ? api.get('/payroll/summary', { params })
           : Promise.resolve({ data: { data: null } }),
       ]);
 
       setPayrolls(listRes.data.data || []);
       setSummary(sumRes.data.data);
     } catch (err) {
-      showNotification('Failed to load weekly payroll data', 'error');
+      showNotification('Failed to load payroll data', 'error');
     } finally {
       setLoading(false);
     }
@@ -127,42 +133,43 @@ export function Payroll() {
       loadData();
     }, 200);
     return () => clearTimeout(timer);
-  }, [selectedPeriod, filters]);
+  }, [filters]);
 
   const resetFilters = () => {
-    setFilters({ search: '', status: '', paymentMethod: '' });
+    setFilters({
+      search: '',
+      status: '',
+      paymentMethod: '',
+      startDate: '',
+      endDate: '',
+    });
   };
 
-  // Helper when week selector changes in modal
-  const handleWeekChange = (newPeriod) => {
-    // Attempt to parse week and set start/end date
-    const details = getISOWeekDetails();
-    if (newPeriod.includes('-W')) {
-      const [y, w] = newPeriod.split('-W');
-      // Approximate date for that week
-      const jan4 = new Date(parseInt(y, 10), 0, 4);
-      const dayOffset = (parseInt(w, 10) - 1) * 7;
-      const targetDate = new Date(jan4.getTime() + dayOffset * 86400000);
-      const weekInfo = getISOWeekDetails(targetDate);
-      setFormData((prev) => ({
-        ...prev,
-        payroll_period: newPeriod,
-        start_date: weekInfo.startDate,
-        end_date: weekInfo.endDate,
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, payroll_period: newPeriod }));
-    }
+  const applyThisWeek = () => {
+    setFilters((prev) => ({
+      ...prev,
+      startDate: defaultStart,
+      endDate: defaultEnd,
+    }));
+  };
+
+  const applyThisMonth = () => {
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+    setFilters((prev) => ({
+      ...prev,
+      startDate: firstDay,
+      endDate: lastDay,
+    }));
   };
 
   const openCreate = () => {
     setEditingPayroll(null);
-    const currWeek = getISOWeekDetails();
     setFormData({
       user_id: employees[0]?.id || '',
-      payroll_period: selectedPeriod || currWeek.code,
-      start_date: currWeek.startDate,
-      end_date: currWeek.endDate,
+      start_date: defaultStart,
+      end_date: defaultEnd,
+      payroll_period: '',
       base_salary: '',
       allowances: '0',
       deductions: '0',
@@ -178,9 +185,9 @@ export function Payroll() {
     setEditingPayroll(item);
     setFormData({
       user_id: item.user_id,
-      payroll_period: item.payroll_period || item.payroll_month,
-      start_date: item.start_date || '',
-      end_date: item.end_date || '',
+      start_date: item.start_date || item.expense_date || defaultStart,
+      end_date: item.end_date || item.start_date || defaultEnd,
+      payroll_period: item.payroll_period || item.payroll_month || '',
       base_salary: item.base_salary,
       allowances: item.allowances,
       deductions: item.deductions,
@@ -201,14 +208,24 @@ export function Payroll() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.start_date || !formData.end_date) {
+      showNotification('Please select both Wages From Date and To Date', 'error');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
+      const payload = {
+        ...formData,
+        payroll_period: formData.payroll_period?.trim() || `${formData.start_date} to ${formData.end_date}`,
+      };
+
       if (editingPayroll) {
-        await api.put(`/payroll/${editingPayroll.id}`, formData);
-        showNotification('Weekly payroll record updated successfully');
+        await api.put(`/payroll/${editingPayroll.id}`, payload);
+        showNotification('Wage record updated successfully');
       } else {
-        await api.post('/payroll', formData);
-        showNotification('Weekly payroll record created successfully');
+        await api.post('/payroll', payload);
+        showNotification('Wage slip created successfully');
       }
       setIsModalOpen(false);
       loadData();
@@ -225,7 +242,7 @@ export function Payroll() {
     try {
       setIsSubmitting(true);
       await api.post(`/payroll/${payModalItem.id}/pay`, payForm);
-      showNotification(`Weekly wages for ${payModalItem.employee_name} marked as Paid!`);
+      showNotification(`Wages for ${payModalItem.employee_name} marked as Paid!`);
       setPayModalItem(null);
       loadData();
     } catch (err) {
@@ -240,7 +257,7 @@ export function Payroll() {
       const res = await api.get(`/payroll/${item.id}/whatsapp`);
       const payload = res.data.data;
       if (!payload.hasPhone) {
-        showNotification(`No valid phone number found for ${item.employee_name}. Please edit their profile in Team Users.`, 'error');
+        showNotification(`No valid phone number for ${item.employee_name}. Please edit their profile in Team Users.`, 'error');
         return;
       }
       window.open(payload.whatsappUrl, '_blank');
@@ -250,7 +267,7 @@ export function Payroll() {
     }
   };
 
-  const readableCurrentPeriod = formatPeriodDisplay(selectedPeriod);
+  const isFiltered = Boolean(filters.search || filters.status || filters.paymentMethod || filters.startDate || filters.endDate);
 
   return (
     <div className="space-y-6">
@@ -259,51 +276,22 @@ export function Payroll() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <Banknote className="w-6 h-6 text-brand-500" />
-            <span>Weekly Workforce Payroll & Wage Processing</span>
+            <span>Workforce Payroll & Wage Processing</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage site labor wages, attendance payouts, overtime allowances, and instant WhatsApp payslips.
+            Manage site labor wages, attendance periods, site overtime allowances, and instant WhatsApp payslips.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
-          {/* Week Selector Dropdown */}
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm text-xs font-semibold">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="outline-none bg-transparent text-slate-900 text-xs font-bold cursor-pointer pr-1"
-            >
-              {weekOptions.map((w) => (
-                <option key={w.code} value={w.code}>
-                  {w.label} {w.code === initialWeek.code ? '• Current' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* HTML5 Week Picker fallback */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-xl shadow-sm text-xs">
-            <input
-              type="week"
-              value={selectedPeriod.startsWith('20') && selectedPeriod.includes('-W') ? selectedPeriod : ''}
-              onChange={(e) => e.target.value && setSelectedPeriod(e.target.value)}
-              title="Pick any calendar week"
-              className="outline-none bg-transparent text-slate-800 text-xs cursor-pointer"
-            />
-          </div>
-
-          {isFinanceOrAdmin && (
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Add Weekly Slip</span>
-            </button>
-          )}
-        </div>
+        {isFinanceOrAdmin && (
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all self-start sm:self-auto"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Add Wage Slip</span>
+          </button>
+        )}
       </div>
 
       {/* KPI Cards (Accountant & Admin only) */}
@@ -311,13 +299,13 @@ export function Payroll() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Total Weekly Wage Liability
+              Total Wage Liability
             </span>
             <span className="text-xl font-black text-slate-900 block mt-1">
               ₹ {Number(summary.total_net_liability || 0).toLocaleString('en-IN')}
             </span>
             <span className="text-xs text-slate-500 mt-1 block">
-              {summary.total_employees || 0} Staff in {readableCurrentPeriod}
+              {summary.total_employees || 0} Staff Members in Scope
             </span>
           </div>
 
@@ -348,36 +336,83 @@ export function Payroll() {
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                Weekly WhatsApp Slips
+                WhatsApp Delivery
               </span>
               <span className="text-base font-bold text-slate-900 block mt-1">1-Click Dispatch</span>
-              <span className="text-xs text-slate-500 mt-0.5 block">Delivers weekly breakdown directly</span>
+              <span className="text-xs text-slate-500 mt-0.5 block">Delivers wage breakdown directly</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Filter Bar */}
+      {/* Date Range & Full Filter Bar */}
       <div className="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="relative">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Date Range Inputs */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-xs font-bold text-slate-600">From:</span>
+              <input
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                className="text-xs bg-transparent text-slate-800 font-bold outline-none cursor-pointer"
+              />
+              <span className="text-xs font-bold text-slate-600 ml-1">To:</span>
+              <input
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                className="text-xs bg-transparent text-slate-800 font-bold outline-none cursor-pointer"
+              />
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1 p-0.5 bg-slate-100 rounded-xl text-xs">
+              <button
+                onClick={applyThisWeek}
+                className="px-2.5 py-1 rounded-lg text-slate-700 hover:text-slate-950 font-medium hover:bg-white transition-all"
+              >
+                This Week
+              </button>
+              <button
+                onClick={applyThisMonth}
+                className="px-2.5 py-1 rounded-lg text-slate-700 hover:text-slate-950 font-medium hover:bg-white transition-all"
+              >
+                This Month
+              </button>
+              <button
+                onClick={() => setFilters((prev) => ({ ...prev, startDate: '', endDate: '' }))}
+                className="px-2.5 py-1 rounded-lg text-slate-700 hover:text-slate-950 font-medium hover:bg-white transition-all"
+              >
+                All Dates
+              </button>
+            </div>
+          </div>
+
+          {/* Search box */}
+          <div className="relative min-w-[220px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search employee name, phone, ref..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="Search employee name, phone..."
+              className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+        </div>
 
+        {/* Secondary Filters Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
           <div>
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">All Statuses</option>
+              <option value="">All Payment Statuses</option>
               <option value="pending">Pending Payout</option>
               <option value="paid">Paid & Settled</option>
               <option value="draft">Draft</option>
@@ -388,7 +423,7 @@ export function Payroll() {
             <select
               value={filters.paymentMethod}
               onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
-              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">All Payment Modes</option>
               <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
@@ -399,14 +434,16 @@ export function Payroll() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
+        {/* Active scope count & Reset */}
+        <div className="flex items-center justify-between pt-1 text-xs text-slate-500">
           <span>
-            Showing <strong>{payrolls.length}</strong> wage records for <strong>{readableCurrentPeriod}</strong>
+            Showing <strong>{payrolls.length}</strong> wage records
+            {filters.startDate && filters.endDate ? ` for ${filters.startDate} to ${filters.endDate}` : ''}
           </span>
-          {(filters.search || filters.status || filters.paymentMethod) && (
+          {isFiltered && (
             <button onClick={resetFilters} className="text-brand-600 font-semibold flex items-center gap-1">
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
+              <span>Reset Filters</span>
             </button>
           )}
         </div>
@@ -417,7 +454,7 @@ export function Payroll() {
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
-            <p className="text-sm">Loading weekly payroll records...</p>
+            <p className="text-sm">Loading wage records...</p>
           </div>
         ) : payrolls.length === 0 ? (
           <div className="p-16 text-center">
@@ -425,8 +462,8 @@ export function Payroll() {
             <h3 className="text-base font-semibold text-slate-800">No Wage Records Found</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
               {isFinanceOrAdmin
-                ? `Click "Add Weekly Slip" to generate wage slips for ${readableCurrentPeriod}.`
-                : 'No wage slips have been recorded for you for this week.'}
+                ? 'Click "Add Wage Slip" above to record wages for any custom date range.'
+                : 'No wage slips found matching this period.'}
             </p>
           </div>
         ) : (
@@ -435,7 +472,7 @@ export function Payroll() {
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Week Period</th>
+                  <th className="py-3 px-4">Wages Period (From → To)</th>
                   <th className="py-3 px-4">Base Wage</th>
                   <th className="py-3 px-4">Site OT / Allowances</th>
                   <th className="py-3 px-4">Deductions</th>
@@ -458,12 +495,14 @@ export function Payroll() {
                     </td>
 
                     <td className="py-3 px-4">
-                      <span className="font-bold font-mono text-slate-800 block text-xs">
-                        {item.payroll_period || item.payroll_month}
+                      <span className="font-bold text-slate-800 block text-xs">
+                        {item.start_date && item.end_date
+                          ? `${item.start_date} → ${item.end_date}`
+                          : item.payroll_period || item.payroll_month}
                       </span>
-                      {item.start_date && item.end_date && (
+                      {item.payroll_period && item.payroll_period !== `${item.start_date} to ${item.end_date}` && (
                         <span className="text-[10px] text-slate-400 block">
-                          {item.start_date} → {item.end_date}
+                          {item.payroll_period}
                         </span>
                       )}
                     </td>
@@ -503,7 +542,7 @@ export function Payroll() {
                           <button
                             onClick={() => openWhatsApp(item)}
                             className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
-                            title="Send WhatsApp Weekly Payslip"
+                            title="Send WhatsApp Wage Slip"
                           >
                             <MessageCircle className="w-4 h-4 text-emerald-600" />
                           </button>
@@ -558,12 +597,12 @@ export function Payroll() {
         )}
       </div>
 
-      {/* Add / Edit Weekly Payroll Modal */}
+      {/* Add / Edit Wages Modal - Direct From & To Date */}
       {isModalOpen && (
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title={editingPayroll ? 'Edit Weekly Wage Record' : 'Create Weekly Wage Slip'}
+          title={editingPayroll ? 'Edit Wage Slip' : 'Create Wage Slip'}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -587,61 +626,52 @@ export function Payroll() {
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Payroll Week (Period) *
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <select
-                  value={formData.payroll_period}
-                  onChange={(e) => handleWeekChange(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                >
-                  {weekOptions.map((w) => (
-                    <option key={w.code} value={w.code}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
-
+            {/* Direct Start and End Date Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Wages From Date *
+                </label>
                 <input
-                  type="week"
-                  value={formData.payroll_period.startsWith('20') && formData.payroll_period.includes('-W') ? formData.payroll_period : ''}
-                  onChange={(e) => e.target.value && handleWeekChange(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Wages To Date *
+                </label>
+                <input
+                  type="date"
+                  value={formData.end_date}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Start Date (Mon)
-                </label>
-                <input
-                  type="date"
-                  value={formData.start_date || ''}
-                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  End Date (Sun)
-                </label>
-                <input
-                  type="date"
-                  value={formData.end_date || ''}
-                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Period Remark / Label (Optional)
+              </label>
+              <input
+                type="text"
+                value={formData.payroll_period}
+                onChange={(e) => setFormData({ ...formData, payroll_period: e.target.value })}
+                placeholder="e.g. Site A Week 1 or Nov 1st Week (optional)"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Weekly Base *
+                  Base Wage *
                 </label>
                 <input
                   type="number"
@@ -688,7 +718,7 @@ export function Payroll() {
 
             {/* Live Net Calculation Strip */}
             <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center justify-between text-xs">
-              <span className="text-slate-400">Computed Net Payable:</span>
+              <span className="text-slate-400">Net Payable Wages:</span>
               <span className="text-base font-black text-brand-400">
                 ₹ {calculateNet().toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
@@ -754,7 +784,7 @@ export function Payroll() {
                 className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>{editingPayroll ? 'Update Weekly Slip' : 'Save Weekly Record'}</span>
+                <span>{editingPayroll ? 'Update Wage Slip' : 'Save Wage Record'}</span>
               </button>
             </div>
           </form>
@@ -766,7 +796,7 @@ export function Payroll() {
         <Modal
           isOpen={Boolean(payModalItem)}
           onClose={() => setPayModalItem(null)}
-          title={`Disburse Weekly Wages: ${payModalItem.employee_name}`}
+          title={`Disburse Wages: ${payModalItem.employee_name}`}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleMarkAsPaid} className="space-y-4">
@@ -776,9 +806,11 @@ export function Payroll() {
                 <span className="font-bold text-slate-900">{payModalItem.employee_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Week Period:</span>
+                <span className="text-slate-400">Wages Period:</span>
                 <span className="font-bold text-slate-900 font-mono">
-                  {payModalItem.payroll_period || payModalItem.payroll_month}
+                  {payModalItem.start_date && payModalItem.end_date
+                    ? `${payModalItem.start_date} to ${payModalItem.end_date}`
+                    : payModalItem.payroll_period || payModalItem.payroll_month}
                 </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200">
@@ -857,7 +889,7 @@ export function Payroll() {
         <Modal
           isOpen={isPayslipOpen}
           onClose={() => setIsPayslipOpen(false)}
-          title={`Wage Slip: ${selectedPayslip.employee_name} (${selectedPayslip.payroll_period || selectedPayslip.payroll_month})`}
+          title={`Wage Slip: ${selectedPayslip.employee_name}`}
           maxWidth="max-w-lg"
         >
           <div className="space-y-4 print:p-0">
@@ -866,17 +898,14 @@ export function Payroll() {
               <div className="flex justify-between items-start border-b border-slate-200 pb-3">
                 <div>
                   <h2 className="text-base font-black text-slate-900 tracking-tight">BUILDTRACK CONSTRUCTION ERP</h2>
-                  <p className="text-[11px] text-slate-500">Official Weekly Wage Statement</p>
+                  <p className="text-[11px] text-slate-500">Official Site Wage Statement</p>
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-bold text-slate-800 block font-mono">
-                    {formatPeriodDisplay(selectedPayslip.payroll_period || selectedPayslip.payroll_month)}
+                    {selectedPayslip.start_date && selectedPayslip.end_date
+                      ? `${selectedPayslip.start_date} → ${selectedPayslip.end_date}`
+                      : selectedPayslip.payroll_period || selectedPayslip.payroll_month}
                   </span>
-                  {selectedPayslip.start_date && selectedPayslip.end_date && (
-                    <span className="text-[10px] text-slate-500 block">
-                      {selectedPayslip.start_date} → {selectedPayslip.end_date}
-                    </span>
-                  )}
                   <span
                     className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-1 ${
                       selectedPayslip.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -915,7 +944,7 @@ export function Payroll() {
                 </div>
                 <div className="divide-y divide-slate-100 p-2 space-y-1">
                   <div className="grid grid-cols-2">
-                    <span className="text-slate-600">Weekly Base Wage</span>
+                    <span className="text-slate-600">Base Wage</span>
                     <span className="text-right font-medium">
                       ₹ {Number(selectedPayslip.base_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
@@ -934,7 +963,7 @@ export function Payroll() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 bg-slate-900 text-white p-3 font-bold text-sm">
-                  <span>Net Disbursed Wages</span>
+                  <span>Net Payable Wages</span>
                   <span className="text-right text-brand-400 font-black">
                     ₹ {Number(selectedPayslip.net_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>

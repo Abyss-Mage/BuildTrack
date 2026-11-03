@@ -11,8 +11,7 @@ export class PayrollController {
   });
 
   static getSummary = asyncHandler(async (req, res) => {
-    const period = req.query.period || req.query.month;
-    const summary = await PayrollService.getMonthlySummary(period);
+    const summary = await PayrollService.getMonthlySummary(req.query);
     return ApiResponse.success(res, summary, 'Payroll summary retrieved');
   });
 
@@ -89,8 +88,7 @@ export class PayrollController {
   });
 
   static getMonthlyBroadcast = asyncHandler(async (req, res) => {
-    const period = req.query.period || req.query.month || new Date().toISOString().slice(0, 7);
-    const broadcast = await PayrollService.getMonthlyBroadcastList(period);
+    const broadcast = await PayrollService.getMonthlyBroadcastList(req.query);
     return ApiResponse.success(res, broadcast, 'WhatsApp broadcast list ready');
   });
 
