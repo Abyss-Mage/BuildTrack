@@ -46,19 +46,19 @@ export function Sidebar() {
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm animate-scrim-in lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar Panel */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-slate-900 text-slate-300 flex flex-col border-r border-slate-800 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 theme-light material-dark text-slate-300 flex flex-col border-r border-white/5 transition-transform duration-300 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand Header */}
-        <div className="flex items-center justify-between px-6 h-16 border-b border-slate-800 bg-slate-950/40">
+        <div className="flex items-center justify-between px-6 h-16 border-b border-white/5">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-brand-500 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-brand-500/20">
               <HardHat className="w-5 h-5 text-slate-950" />
@@ -75,6 +75,7 @@ export function Sidebar() {
 
           <button
             onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation menu"
             className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 lg:hidden"
           >
             <X className="w-5 h-5" />
@@ -82,11 +83,11 @@ export function Sidebar() {
         </div>
 
         {/* Current User Card */}
-        <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-950/20">
+        <div className="px-4 py-3 border-b border-white/5">
           <NavLink
             to="/settings"
             onClick={() => setSidebarOpen(false)}
-            className="flex items-center gap-3 p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 transition-colors cursor-pointer group"
+            className="flex items-center gap-3 p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center font-bold text-xs uppercase">
               {user?.name?.slice(0, 2) || 'US'}
@@ -104,7 +105,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav aria-label="Main navigation" className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {visibleItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -113,10 +114,10 @@ export function Sidebar() {
                 to={item.to}
                 onClick={() => setSidebarOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  `flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium ${
                     isActive
-                      ? 'bg-brand-500 text-slate-950 font-semibold shadow-sm shadow-brand-500/20'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-brand-500 text-slate-950 font-semibold shadow-[0_1px_2px_rgb(0_0_0/0.3),inset_0_1px_0_rgb(255_255_255/0.25)]'
+                      : 'text-slate-300 hover:text-white hover:bg-white/10'
                   }`
                 }
               >
@@ -128,7 +129,7 @@ export function Sidebar() {
         </nav>
 
         {/* Footer / Logout */}
-        <div className="p-3 border-t border-slate-800">
+        <div className="p-3 border-t border-white/5">
           <button
             onClick={logout}
             className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"

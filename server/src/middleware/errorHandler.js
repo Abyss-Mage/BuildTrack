@@ -12,9 +12,10 @@ export function errorHandler(err, req, res, next) {
     errors = err.errors;
   } else if (err.name === 'ZodError') {
     statusCode = 400;
-    const detailMsg = err.errors.map((e) => `${e.path.slice(-1)[0] || 'field'}: ${e.message}`).join(', ');
+    const issues = err.issues || err.errors || [];
+    const detailMsg = issues.map((e) => `${e.path.length ? e.path[e.path.length - 1] : 'field'}: ${e.message}`).join(', ');
     message = detailMsg || 'Validation Error';
-    errors = err.errors.map((e) => ({
+    errors = issues.map((e) => ({
       field: e.path.join('.'),
       message: e.message,
     }));

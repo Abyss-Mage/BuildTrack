@@ -2,7 +2,19 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/client';
 import Modal from '../components/ui/Modal';
 import { useUiStore } from '../store/uiStore';
-import { UploadCloud, X, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { UploadCloud, X, FileText, Image as ImageIcon, Loader2, AlertTriangle } from 'lucide-react';
+
+const HIDE_BUDGET_WARNING_KEY = 'hideBudgetWarning';
+
+const isBudgetWarningHidden = () => {
+  try {
+    return localStorage.getItem(HIDE_BUDGET_WARNING_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const formatINR = (val) => `₹ ${Number(val || 0).toLocaleString('en-IN')}`;
 
 export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = null }) {
   const { showNotification } = useUiStore();
@@ -11,6 +23,8 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
   const [categories, setCategories] = useState([]);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [budgetWarning, setBudgetWarning] = useState(null);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const [formData, setFormData] = useState({
     project_id: '',
@@ -113,6 +127,46 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
       return;
     }
 
+    // Warn when this expense would push the project past its budget
+    if (!isBudgetWarningHidden()) {
+      const project = projects.find((p) => String(p.id) === String(formData.project_id));
+      const budget = Number(project?.total_budget || 0);
+      if (budget > 0) {
+        // An edited expense that is already counted as spent must not be counted twice
+        const alreadyCounted = initialExpense && ['approved', 'processed'].includes(initialExpense.status)
+          ? Number(initialExpense.amount || 0)
+          : 0;
+        const spentAfter = Number(project.total_spent || 0) - alreadyCounted + Number(formData.amount);
+        if (spentAfter > budget) {
+          setBudgetWarning({ forcedStatus, projectName: project.name, budget, spentAfter });
+          return;
+        }
+      }
+    }
+
+    await saveExpense(forcedStatus);
+  };
+
+  const confirmBudgetWarning = async () => {
+    if (dontShowAgain) {
+      try {
+        localStorage.setItem(HIDE_BUDGET_WARNING_KEY, '1');
+      } catch {
+        // Storage unavailable: the warning will simply show again next time
+      }
+    }
+    const { forcedStatus } = budgetWarning;
+    setBudgetWarning(null);
+    setDontShowAgain(false);
+    await saveExpense(forcedStatus);
+  };
+
+  const cancelBudgetWarning = () => {
+    setBudgetWarning(null);
+    setDontShowAgain(false);
+  };
+
+  const saveExpense = async (forcedStatus) => {
     try {
       setIsSubmitting(true);
       const data = new FormData();
@@ -151,9 +205,10 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
   };
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={budgetWarning ? () => {} : onClose}
       title={initialExpense ? 'Edit Expense Record' : 'Record New Site Expense'}
       maxWidth="max-w-3xl"
     >
@@ -397,6 +452,55 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
         </form>
       )}
     </Modal>
+
+    <Modal
+      isOpen={Boolean(budgetWarning)}
+      onClose={cancelBudgetWarning}
+      title="Project budget warning"
+      maxWidth="max-w-md"
+    >
+      {budgetWarning && (
+        <div className="space-y-4">
+          <div className="flex gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" aria-hidden="true" />
+            <p className="text-sm text-slate-700">
+              This expense takes <strong>{budgetWarning.projectName}</strong> to{' '}
+              <strong>{formatINR(budgetWarning.spentAfter)}</strong>, which is{' '}
+              <strong className="text-rose-600">{formatINR(budgetWarning.spentAfter - budgetWarning.budget)}</strong>{' '}
+              over its budget of {formatINR(budgetWarning.budget)}.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => setDontShowAgain(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-300 accent-amber-500"
+            />
+            Don't show this warning again
+          </label>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={cancelBudgetWarning}
+              className="px-4 py-2 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              Go back
+            </button>
+            <button
+              type="button"
+              onClick={confirmBudgetWarning}
+              className="px-4 py-2 rounded-full text-sm font-semibold bg-brand-500 hover:bg-brand-400 text-slate-950"
+            >
+              Submit anyway
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }
 

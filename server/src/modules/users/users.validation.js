@@ -18,7 +18,7 @@ export const updateUserSchema = z.object({
     role: z.enum(['admin', 'project_manager', 'site_engineer', 'accountant']).optional(),
     phone: z.union([z.string(), z.null()]).optional(),
     approval_limit: z.union([z.number(), z.string(), z.null()]).optional(),
-    is_active: z.union([z.number(), z.string()]).optional(),
+    is_active: z.coerce.number().int().min(0).max(1).optional(),
     password: z.union([z.string().min(6), z.literal(''), z.null()]).optional(),
   }),
 });

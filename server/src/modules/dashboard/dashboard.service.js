@@ -1,5 +1,19 @@
 import db from '../../config/database.js';
 
+function buildDateRange(filters) {
+  let sql = '';
+  const params = [];
+  if (filters.startDate) {
+    sql += ' AND e.expense_date >= ?';
+    params.push(filters.startDate);
+  }
+  if (filters.endDate) {
+    sql += ' AND e.expense_date <= ?';
+    params.push(filters.endDate);
+  }
+  return { sql, params };
+}
+
 export class DashboardService {
   static async getSummary(user, filters = {}) {
     let params = [];
@@ -11,16 +25,7 @@ export class DashboardService {
     }
 
     // Date range filter support
-    let dateFilter = '';
-    let dateParams = [];
-    if (filters.startDate) {
-      dateFilter += ` AND e.expense_date >= ?`;
-      dateParams.push(filters.startDate);
-    }
-    if (filters.endDate) {
-      dateFilter += ` AND e.expense_date <= ?`;
-      dateParams.push(filters.endDate);
-    }
+    const { sql: dateFilter, params: dateParams } = buildDateRange(filters);
 
     let spendResult;
     if (filters.startDate || filters.endDate) {
@@ -104,14 +109,10 @@ export class DashboardService {
       params.push(Number(filters.projectId));
     }
 
-    if (filters.startDate) {
-      projectScope += ` AND e.expense_date >= ?`;
-      params.push(filters.startDate);
-    }
-    if (filters.endDate) {
-      projectScope += ` AND e.expense_date <= ?`;
-      params.push(filters.endDate);
-    } else if (!filters.startDate) {
+    const range = buildDateRange(filters);
+    projectScope += range.sql;
+    params.push(...range.params);
+    if (!filters.startDate && !filters.endDate) {
       if (filters.timeframe === 'month') {
         projectScope += ` AND e.expense_date >= date('now', '-1 month')`;
       } else if (filters.timeframe === 'quarter') {
@@ -220,14 +221,9 @@ export class DashboardService {
       params.push(Number(filters.projectId));
     }
 
-    if (filters.startDate) {
-      projectScope += ` AND e.expense_date >= ?`;
-      params.push(filters.startDate);
-    }
-    if (filters.endDate) {
-      projectScope += ` AND e.expense_date <= ?`;
-      params.push(filters.endDate);
-    }
+    const range = buildDateRange(filters);
+    projectScope += range.sql;
+    params.push(...range.params);
 
     const sql = `
       SELECT 

@@ -22,7 +22,6 @@ import {
   Calendar,
   X,
   MessageCircle,
-  Send,
   Phone,
   AlertTriangle,
   ExternalLink,
@@ -68,7 +67,6 @@ export function Dashboard() {
   const [broadcastEndDate, setBroadcastEndDate] = useState(defaultWeekEnd);
   const [broadcastData, setBroadcastData] = useState(null);
   const [loadingBroadcast, setLoadingBroadcast] = useState(false);
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   const loadProjects = async () => {
     try {
@@ -141,35 +139,6 @@ export function Dashboard() {
     window.open(item.whatsappUrl, '_blank');
   };
 
-  const handleBroadcastAll = async () => {
-    if (!broadcastData || !broadcastData.items || broadcastData.items.length === 0) return;
-    try {
-      setIsBroadcasting(true);
-      const validItems = broadcastData.items.filter((i) => i.hasPhone);
-      const payrollIds = validItems.map((i) => i.payrollId);
-
-      // Record in audit log and database
-      await api.post('/payroll/record-broadcast', {
-        period: broadcastData.period || `${broadcastStartDate} to ${broadcastEndDate}`,
-        payroll_ids: payrollIds,
-      });
-
-      showNotification(`Broadcast logged! Opening WhatsApp for ${validItems.length} employees...`);
-
-      // Open the first WhatsApp immediately, and provide direct quick links
-      if (validItems.length > 0) {
-        window.open(validItems[0].whatsappUrl, '_blank');
-      }
-
-      // Reload broadcast state
-      loadBroadcastData(broadcastStartDate, broadcastEndDate);
-    } catch (err) {
-      showNotification('Broadcast recording failed', 'error');
-    } finally {
-      setIsBroadcasting(false);
-    }
-  };
-
   const formatCurrency = (val) =>
     `₹ ${Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -196,7 +165,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 theme-light bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-slate-800">
         <div>
           <span className="text-xs font-semibold text-brand-400 uppercase tracking-widest">
             Site Cost Overview
@@ -703,29 +672,6 @@ export function Dashboard() {
                     <span className="text-[10px] text-amber-700 uppercase font-semibold block">Missing Phone</span>
                     <strong className="text-sm text-amber-800">{broadcastData.missingPhoneCount}</strong>
                   </div>
-                </div>
-
-                {/* Primary Broadcast 1-Click Button */}
-                <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-                  <div>
-                    <span className="text-xs font-bold block text-white">One-Click Payroll Broadcast</span>
-                    <span className="text-[11px] text-slate-300">
-                      Dispatches official salary slips to all {broadcastData.withValidPhone} employees.
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={handleBroadcastAll}
-                    disabled={isBroadcasting || broadcastData.withValidPhone === 0}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-md transition-all disabled:opacity-50"
-                  >
-                    {isBroadcasting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    <span>Broadcast to All Employees</span>
-                  </button>
                 </div>
 
                 {/* Employee Roster */}

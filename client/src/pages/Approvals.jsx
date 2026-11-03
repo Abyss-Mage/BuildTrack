@@ -88,7 +88,7 @@ export function Approvals() {
       if (filters.search) params.search = filters.search;
       if (filters.sortBy) params.sortBy = filters.sortBy;
 
-      const res = await api.get('/approvals', { params });
+      const res = await api.get('/approvals/pending', { params });
       setQueue(res.data.data || []);
     } catch (err) {
       showNotification('Failed to load approvals queue', 'error');
@@ -212,11 +212,13 @@ export function Approvals() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {!isAdmin && (
+          {user?.role !== 'accountant' && (
             <span className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
               Your Approval Authority:{' '}
               <strong className="text-slate-900">
-                {user?.approval_limit !== null && user?.approval_limit !== undefined
+                {isAdmin
+                  ? 'Unlimited'
+                  : user?.approval_limit !== null && user?.approval_limit !== undefined
                   ? Number(user.approval_limit) === 0
                     ? '₹0 (Submission Only)'
                     : `₹ ${Number(user.approval_limit).toLocaleString('en-IN')}`
@@ -359,6 +361,12 @@ export function Approvals() {
               Number(user.approval_limit) === 0;
 
             const cannotApproveDueToLimit = hasExceededAccountLimit || isUnauthorizedAccount;
+
+            // Per-project role limit (set on the project) that the voucher exceeds
+            const hasExceededRoleLimit =
+              item.role_max_limit !== null &&
+              item.role_max_limit !== undefined &&
+              Number(item.amount) > Number(item.role_max_limit);
 
             return (
               <div

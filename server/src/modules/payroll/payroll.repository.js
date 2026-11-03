@@ -27,13 +27,13 @@ export class PayrollRepository {
     }
 
     if (filters.startDate) {
-      sql += ' AND (pr.start_date >= ? OR pr.end_date >= ?)';
-      params.push(filters.startDate, filters.startDate);
+      sql += ' AND pr.end_date >= ?';
+      params.push(filters.startDate);
     }
 
     if (filters.endDate) {
-      sql += ' AND (pr.end_date <= ? OR pr.start_date <= ?)';
-      params.push(filters.endDate, filters.endDate);
+      sql += ' AND pr.start_date <= ?';
+      params.push(filters.endDate);
     }
 
     if (filters.userId) {
@@ -91,14 +91,20 @@ export class PayrollRepository {
     );
   }
 
+  static async findOverlapping(userId, startDate, endDate) {
+    return db.getOne(
+      'SELECT * FROM payroll WHERE user_id = ? AND start_date <= ? AND end_date >= ?',
+      [userId, endDate, startDate]
+    );
+  }
+
   static async findByUserAndMonth(userId, month) {
     return this.findByUserAndPeriod(userId, month);
   }
 
   static async getMonthlySummary(filters = {}) {
-    const period = typeof filters === 'string' ? filters : filters?.period || filters?.month;
-    const startDate = typeof filters === 'object' ? filters?.startDate : null;
-    const endDate = typeof filters === 'object' ? filters?.endDate : null;
+    const { startDate, endDate } = filters;
+    const period = filters.period || filters.month;
 
     let sql = `
       SELECT 
@@ -117,12 +123,12 @@ export class PayrollRepository {
       params.push(period, period);
     }
     if (startDate) {
-      sql += ' AND (start_date >= ? OR end_date >= ?)';
-      params.push(startDate, startDate);
+      sql += ' AND end_date >= ?';
+      params.push(startDate);
     }
     if (endDate) {
-      sql += ' AND (end_date <= ? OR start_date <= ?)';
-      params.push(endDate, endDate);
+      sql += ' AND start_date <= ?';
+      params.push(endDate);
     }
 
     return db.getOne(sql, params);
@@ -134,12 +140,7 @@ export class PayrollRepository {
     const deduct = Number(data.deductions || 0);
     const net = Math.max(0, base + allow - deduct);
 
-    let period = data.payroll_period?.trim();
-    if (!period && data.start_date && data.end_date) {
-      period = `${data.start_date} to ${data.end_date}`;
-    } else if (!period) {
-      period = new Date().toISOString().slice(0, 10);
-    }
+    const period = data.payroll_period?.trim() || `${data.start_date} to ${data.end_date}`;
 
     const month = data.payroll_month || (data.start_date ? data.start_date.slice(0, 7) : period.slice(0, 7));
 

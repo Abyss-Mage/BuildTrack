@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
+import ThemeToggle from '../ui/ThemeToggle';
 import { Menu, PlusCircle, Bell, User } from 'lucide-react';
 
 export function Navbar({ onOpenNewExpense }) {
@@ -10,17 +11,18 @@ export function Navbar({ onOpenNewExpense }) {
   const canCreateExpense = ['admin', 'project_manager', 'site_engineer'].includes(user?.role);
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 lg:px-8 flex items-center justify-between">
+    <header className="sticky top-0 z-30 h-16 material-thin shadow-[0_1px_0_rgb(0_0_0/0.05)] px-4 lg:px-8 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <button
           onClick={toggleSidebar}
+          aria-label="Open navigation menu"
           className="p-2 rounded-xl text-slate-500 hover:text-slate-700 hover:bg-slate-100 lg:hidden"
         >
           <Menu className="w-6 h-6" />
         </button>
 
         <div>
-          <h2 className="text-sm font-semibold text-slate-800 hidden sm:block">
+          <h2 className="text-sm font-semibold tracking-tight text-slate-900 hidden sm:block">
             Construction Project Cost Control
           </h2>
           <p className="text-xs text-slate-500 hidden sm:block">
@@ -33,12 +35,14 @@ export function Navbar({ onOpenNewExpense }) {
         {canCreateExpense && onOpenNewExpense && (
           <button
             onClick={onOpenNewExpense}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-semibold text-xs sm:text-sm shadow-sm transition-all transform active:scale-95"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-brand-500 hover:bg-brand-400 text-slate-950 font-semibold text-xs sm:text-sm shadow-sm"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4" aria-hidden="true" />
             <span>New Expense</span>
           </button>
         )}
+
+        <ThemeToggle />
 
         <div className="h-8 w-px bg-slate-200 hidden sm:block" />
 

@@ -1,20 +1,6 @@
 import { PayrollRepository } from './payroll.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 
-function formatPeriodLabel(periodStr) {
-  if (!periodStr) return '';
-  if (periodStr.includes('-W')) {
-    const [year, week] = periodStr.split('-W');
-    return `Week ${parseInt(week, 10)}, ${year}`;
-  }
-  if (periodStr.includes('-')) {
-    const [year, month] = periodStr.split('-');
-    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-    return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-  }
-  return periodStr;
-}
-
 function cleanPhoneNumber(phone) {
   if (!phone) return null;
   const digits = String(phone).replace(/\D/g, '');
@@ -36,8 +22,8 @@ export class PayrollService {
     return PayrollRepository.findAll(filters);
   }
 
-  static async getMonthlySummary(period) {
-    return PayrollRepository.getMonthlySummary(period);
+  static async getMonthlySummary(filters = {}) {
+    return PayrollRepository.getMonthlySummary(filters);
   }
 
   static async getPayrollById(id, user) {
@@ -59,15 +45,25 @@ export class PayrollService {
       throw ApiError.badRequest('Wages From Date and To Date are required');
     }
 
-    const period = (data.payroll_period && data.payroll_period.trim().length > 0)
-      ? data.payroll_period.trim()
-      : `${data.start_date} to ${data.end_date}`;
+    if (data.start_date > data.end_date) {
+      throw ApiError.badRequest('Wages From Date cannot be after To Date');
+    }
+
+    // The period must be unique per employee, so a free-text label is always qualified by its dates
+    const range = `${data.start_date} to ${data.end_date}`;
+    const label = data.payroll_period?.trim();
+    const period = label && label !== range ? `${label} (${range})` : range;
 
     data.payroll_period = period;
 
     const existing = await PayrollRepository.findByUserAndPeriod(data.user_id, period);
     if (existing) {
       throw ApiError.conflict(`A wage record for this employee already exists for ${period}`);
+    }
+
+    const overlap = await PayrollRepository.findOverlapping(data.user_id, data.start_date, data.end_date);
+    if (overlap) {
+      throw ApiError.conflict(`This employee already has a wage record overlapping ${overlap.start_date} to ${overlap.end_date}`);
     }
 
     return PayrollRepository.create(data, createdById);
@@ -177,11 +173,9 @@ export class PayrollService {
    * Broadcast WhatsApp messages for all employees in a given period/date range
    */
   static async getMonthlyBroadcastList(query = {}) {
-    let filters = {};
-    if (typeof query === 'string') {
-      filters = { period: query };
-    } else if (typeof query === 'object') {
-      filters = { ...query };
+    const filters = { ...query };
+    if (!filters.period && !filters.month && !filters.startDate && !filters.endDate) {
+      filters.period = new Date().toISOString().slice(0, 7);
     }
 
     const records = await PayrollRepository.findAll(filters);
