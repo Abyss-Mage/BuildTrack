@@ -1,0 +1,21 @@
+{
+  "name": "construction-expense-tracker",
+  "version": "1.0.0",
+  "description": "Web Based Expense Tracking Platform for a Construction Company hosted on Hostinger Node Apps",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:client": "cd client && npm run build",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "db:init": "cd server && npm run db:init"
+  },
+  "keywords": ["construction", "expense-tracker", "hostinger", "express", "react", "mysql"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
