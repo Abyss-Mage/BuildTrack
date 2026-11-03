@@ -14,7 +14,7 @@ export async function auth(req, res, next) {
     const decoded = jwt.verify(token, env.JWT_SECRET);
 
     const user = await db.getOne(
-      'SELECT id, name, email, role, phone, is_active FROM users WHERE id = ?',
+      'SELECT id, name, email, role, phone, approval_limit, is_active FROM users WHERE id = ?',
       [decoded.id]
     );
 

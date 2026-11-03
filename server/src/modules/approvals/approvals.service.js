@@ -21,22 +21,27 @@ export class ApprovalsService {
       throw ApiError.forbidden('Only Project Managers or Admins can approve pending expenses.');
     }
 
-    // Requirement 2: Check Per-Role Expenditure Approval Allocation for this Project
+    // Per-Account Expenditure Approval Limit Enforcement
     if (user.role !== 'admin') {
-      const limit = await db.getOne(
-        'SELECT can_approve, max_amount_per_expense FROM project_role_approval_limits WHERE project_id = ? AND role = ?',
-        [expense.project_id, user.role]
+      const approver = await db.getOne(
+        'SELECT id, name, role, approval_limit FROM users WHERE id = ?',
+        [user.id]
       );
 
-      if (limit) {
-        if (!limit.can_approve) {
-          throw ApiError.forbidden(`Your role (${user.role.replace('_', ' ')}) is not authorized to approve expenditures for ${expense.project_name}.`);
-        }
+      if (approver) {
+        if (approver.approval_limit !== null && approver.approval_limit !== undefined) {
+          const numericLimit = Number(approver.approval_limit);
+          if (numericLimit === 0) {
+            throw ApiError.forbidden(
+              `Your account (${approver.name}) does not have expenditure approval authorization (Limit: ₹0). Requires approval by an authorized manager or Super Admin.`
+            );
+          }
 
-        if (limit.max_amount_per_expense !== null && Number(expense.amount) > Number(limit.max_amount_per_expense)) {
-          throw ApiError.forbidden(
-            `Expense amount of ₹${Number(expense.amount).toLocaleString('en-IN')} exceeds your role's approval limit of ₹${Number(limit.max_amount_per_expense).toLocaleString('en-IN')} for ${expense.project_name}. Requires authorization by a Super Admin.`
-          );
+          if (Number(expense.amount) > numericLimit) {
+            throw ApiError.forbidden(
+              `Expense voucher amount of ₹${Number(expense.amount).toLocaleString('en-IN')} exceeds your account's approval limit of ₹${numericLimit.toLocaleString('en-IN')}. Requires authorization by a Super Admin or user with higher approval limit.`
+            );
+          }
         }
       }
     }

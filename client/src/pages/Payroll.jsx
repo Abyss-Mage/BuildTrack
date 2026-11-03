@@ -4,6 +4,11 @@ import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
 import Modal from '../components/ui/Modal';
 import {
+  getISOWeekDetails,
+  getRecentWeeks,
+  formatPeriodDisplay,
+} from '../utils/dateUtils';
+import {
   Banknote,
   PlusCircle,
   Search,
@@ -32,8 +37,10 @@ export function Payroll() {
 
   const isFinanceOrAdmin = ['admin', 'accountant'].includes(user?.role);
 
-  const nowMonth = new Date().toISOString().slice(0, 7);
-  const [selectedMonth, setSelectedMonth] = useState(nowMonth);
+  // Initialize with current ISO week
+  const initialWeek = getISOWeekDetails();
+  const [selectedPeriod, setSelectedPeriod] = useState(initialWeek.code);
+  const weekOptions = getRecentWeeks();
 
   const [payrolls, setPayrolls] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -47,15 +54,17 @@ export function Payroll() {
     paymentMethod: '',
   });
 
-  // Create / Edit Modal
+  // Create / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPayroll, setEditingPayroll] = useState(null);
   const [formData, setFormData] = useState({
     user_id: '',
-    payroll_month: nowMonth,
+    payroll_period: initialWeek.code,
+    start_date: initialWeek.startDate,
+    end_date: initialWeek.endDate,
     base_salary: '',
-    allowances: '',
-    deductions: '',
+    allowances: '0',
+    deductions: '0',
     status: 'pending',
     payment_method: 'bank_transfer',
     payment_reference: '',
@@ -67,7 +76,7 @@ export function Payroll() {
   const [selectedPayslip, setSelectedPayslip] = useState(null);
   const [isPayslipOpen, setIsPayslipOpen] = useState(false);
 
-  // Pay Modal
+  // Disburse Modal State
   const [payModalItem, setPayModalItem] = useState(null);
   const [payForm, setPayForm] = useState({
     payment_reference: '',
@@ -88,20 +97,22 @@ export function Payroll() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const params = { month: selectedMonth };
+      const params = { period: selectedPeriod };
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.paymentMethod) params.paymentMethod = filters.paymentMethod;
 
       const [listRes, sumRes] = await Promise.all([
         api.get('/payroll', { params }),
-        isFinanceOrAdmin ? api.get('/payroll/summary', { params: { month: selectedMonth } }) : Promise.resolve({ data: { data: null } }),
+        isFinanceOrAdmin
+          ? api.get('/payroll/summary', { params: { period: selectedPeriod } })
+          : Promise.resolve({ data: { data: null } }),
       ]);
 
       setPayrolls(listRes.data.data || []);
       setSummary(sumRes.data.data);
     } catch (err) {
-      showNotification('Failed to load payroll data', 'error');
+      showNotification('Failed to load weekly payroll data', 'error');
     } finally {
       setLoading(false);
     }
@@ -116,17 +127,42 @@ export function Payroll() {
       loadData();
     }, 200);
     return () => clearTimeout(timer);
-  }, [selectedMonth, filters]);
+  }, [selectedPeriod, filters]);
 
   const resetFilters = () => {
     setFilters({ search: '', status: '', paymentMethod: '' });
   };
 
+  // Helper when week selector changes in modal
+  const handleWeekChange = (newPeriod) => {
+    // Attempt to parse week and set start/end date
+    const details = getISOWeekDetails();
+    if (newPeriod.includes('-W')) {
+      const [y, w] = newPeriod.split('-W');
+      // Approximate date for that week
+      const jan4 = new Date(parseInt(y, 10), 0, 4);
+      const dayOffset = (parseInt(w, 10) - 1) * 7;
+      const targetDate = new Date(jan4.getTime() + dayOffset * 86400000);
+      const weekInfo = getISOWeekDetails(targetDate);
+      setFormData((prev) => ({
+        ...prev,
+        payroll_period: newPeriod,
+        start_date: weekInfo.startDate,
+        end_date: weekInfo.endDate,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, payroll_period: newPeriod }));
+    }
+  };
+
   const openCreate = () => {
     setEditingPayroll(null);
+    const currWeek = getISOWeekDetails();
     setFormData({
       user_id: employees[0]?.id || '',
-      payroll_month: selectedMonth,
+      payroll_period: selectedPeriod || currWeek.code,
+      start_date: currWeek.startDate,
+      end_date: currWeek.endDate,
       base_salary: '',
       allowances: '0',
       deductions: '0',
@@ -142,7 +178,9 @@ export function Payroll() {
     setEditingPayroll(item);
     setFormData({
       user_id: item.user_id,
-      payroll_month: item.payroll_month,
+      payroll_period: item.payroll_period || item.payroll_month,
+      start_date: item.start_date || '',
+      end_date: item.end_date || '',
       base_salary: item.base_salary,
       allowances: item.allowances,
       deductions: item.deductions,
@@ -167,10 +205,10 @@ export function Payroll() {
       setIsSubmitting(true);
       if (editingPayroll) {
         await api.put(`/payroll/${editingPayroll.id}`, formData);
-        showNotification('Payroll record updated successfully');
+        showNotification('Weekly payroll record updated successfully');
       } else {
         await api.post('/payroll', formData);
-        showNotification('Payroll record created successfully');
+        showNotification('Weekly payroll record created successfully');
       }
       setIsModalOpen(false);
       loadData();
@@ -187,7 +225,7 @@ export function Payroll() {
     try {
       setIsSubmitting(true);
       await api.post(`/payroll/${payModalItem.id}/pay`, payForm);
-      showNotification(`Salary for ${payModalItem.employee_name} marked as Paid!`);
+      showNotification(`Weekly wages for ${payModalItem.employee_name} marked as Paid!`);
       setPayModalItem(null);
       loadData();
     } catch (err) {
@@ -212,6 +250,8 @@ export function Payroll() {
     }
   };
 
+  const readableCurrentPeriod = formatPeriodDisplay(selectedPeriod);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -219,22 +259,38 @@ export function Payroll() {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
             <Banknote className="w-6 h-6 text-brand-500" />
-            <span>Workforce Payroll & Salary Processing</span>
+            <span>Weekly Workforce Payroll & Wage Processing</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage site salaries, allowances, deductions, and instant WhatsApp payslip delivery.
+            Manage site labor wages, attendance payouts, overtime allowances, and instant WhatsApp payslips.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start sm:self-auto">
-          {/* Month Picker */}
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {/* Week Selector Dropdown */}
           <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-sm text-xs font-semibold">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={selectedPeriod}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
+              className="outline-none bg-transparent text-slate-900 text-xs font-bold cursor-pointer pr-1"
+            >
+              {weekOptions.map((w) => (
+                <option key={w.code} value={w.code}>
+                  {w.label} {w.code === initialWeek.code ? '• Current' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* HTML5 Week Picker fallback */}
+          <div className="flex items-center gap-1 bg-white border border-slate-200 px-2 py-1.5 rounded-xl shadow-sm text-xs">
             <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="outline-none bg-transparent text-slate-900 text-xs font-bold cursor-pointer"
+              type="week"
+              value={selectedPeriod.startsWith('20') && selectedPeriod.includes('-W') ? selectedPeriod : ''}
+              onChange={(e) => e.target.value && setSelectedPeriod(e.target.value)}
+              title="Pick any calendar week"
+              className="outline-none bg-transparent text-slate-800 text-xs cursor-pointer"
             />
           </div>
 
@@ -244,7 +300,7 @@ export function Payroll() {
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all"
             >
               <PlusCircle className="w-4 h-4" />
-              <span>Add Payroll Slip</span>
+              <span>Add Weekly Slip</span>
             </button>
           )}
         </div>
@@ -255,13 +311,13 @@ export function Payroll() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-              Total Net Payroll Liability
+              Total Weekly Wage Liability
             </span>
             <span className="text-xl font-black text-slate-900 block mt-1">
               ₹ {Number(summary.total_net_liability || 0).toLocaleString('en-IN')}
             </span>
             <span className="text-xs text-slate-500 mt-1 block">
-              {summary.total_employees || 0} Employees in {selectedMonth}
+              {summary.total_employees || 0} Staff in {readableCurrentPeriod}
             </span>
           </div>
 
@@ -273,7 +329,7 @@ export function Payroll() {
               ₹ {Number(summary.total_paid || 0).toLocaleString('en-IN')}
             </span>
             <span className="text-xs text-emerald-700 font-semibold mt-1 block">
-              {summary.paid_count || 0} Salaries Settled
+              {summary.paid_count || 0} Wages Settled
             </span>
           </div>
 
@@ -292,10 +348,10 @@ export function Payroll() {
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                WhatsApp Delivery
+                Weekly WhatsApp Slips
               </span>
               <span className="text-base font-bold text-slate-900 block mt-1">1-Click Dispatch</span>
-              <span className="text-xs text-slate-500 mt-0.5 block">Automated salary breakdowns</span>
+              <span className="text-xs text-slate-500 mt-0.5 block">Delivers weekly breakdown directly</span>
             </div>
           </div>
         </div>
@@ -335,17 +391,17 @@ export function Payroll() {
               className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">All Payment Modes</option>
-              <option value="bank_transfer">Bank Transfer</option>
+              <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
               <option value="upi">UPI</option>
+              <option value="cash">Petty Cash</option>
               <option value="cheque">Cheque</option>
-              <option value="cash">Cash</option>
             </select>
           </div>
         </div>
 
         <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-500">
           <span>
-            Showing <strong>{payrolls.length}</strong> payroll slips for <strong>{selectedMonth}</strong>
+            Showing <strong>{payrolls.length}</strong> wage records for <strong>{readableCurrentPeriod}</strong>
           </span>
           {(filters.search || filters.status || filters.paymentMethod) && (
             <button onClick={resetFilters} className="text-brand-600 font-semibold flex items-center gap-1">
@@ -361,16 +417,16 @@ export function Payroll() {
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center text-slate-400">
             <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
-            <p className="text-sm">Loading payroll slips...</p>
+            <p className="text-sm">Loading weekly payroll records...</p>
           </div>
         ) : payrolls.length === 0 ? (
           <div className="p-16 text-center">
             <Banknote className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-base font-semibold text-slate-800">No Payroll Slips Found</h3>
+            <h3 className="text-base font-semibold text-slate-800">No Wage Records Found</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
               {isFinanceOrAdmin
-                ? `Click "Add Payroll Slip" to record monthly salary for month ${selectedMonth}.`
-                : 'No salary slips have been generated for you this month.'}
+                ? `Click "Add Weekly Slip" to generate wage slips for ${readableCurrentPeriod}.`
+                : 'No wage slips have been recorded for you for this week.'}
             </p>
           </div>
         ) : (
@@ -379,11 +435,11 @@ export function Payroll() {
               <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-400 text-[11px] uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-4">Employee</th>
-                  <th className="py-3 px-4">Month</th>
-                  <th className="py-3 px-4">Base Salary</th>
-                  <th className="py-3 px-4">Allowances</th>
+                  <th className="py-3 px-4">Week Period</th>
+                  <th className="py-3 px-4">Base Wage</th>
+                  <th className="py-3 px-4">Site OT / Allowances</th>
                   <th className="py-3 px-4">Deductions</th>
-                  <th className="py-3 px-4">Net Salary</th>
+                  <th className="py-3 px-4">Net Payable</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -401,11 +457,18 @@ export function Payroll() {
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 font-mono font-semibold text-slate-700">
-                      {item.payroll_month}
+                    <td className="py-3 px-4">
+                      <span className="font-bold font-mono text-slate-800 block text-xs">
+                        {item.payroll_period || item.payroll_month}
+                      </span>
+                      {item.start_date && item.end_date && (
+                        <span className="text-[10px] text-slate-400 block">
+                          {item.start_date} → {item.end_date}
+                        </span>
+                      )}
                     </td>
 
-                    <td className="py-3 px-4 text-slate-600">
+                    <td className="py-3 px-4 text-slate-600 font-medium">
                       ₹ {Number(item.base_salary).toLocaleString('en-IN')}
                     </td>
 
@@ -429,7 +492,7 @@ export function Payroll() {
                             : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}
                       >
-                        {item.status === 'paid' ? 'Paid' : 'Pending'}
+                        {item.status === 'paid' ? 'Paid & Settled' : 'Pending'}
                       </span>
                     </td>
 
@@ -440,7 +503,7 @@ export function Payroll() {
                           <button
                             onClick={() => openWhatsApp(item)}
                             className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
-                            title="Send WhatsApp Payslip to Employee"
+                            title="Send WhatsApp Weekly Payslip"
                           >
                             <MessageCircle className="w-4 h-4 text-emerald-600" />
                           </button>
@@ -453,7 +516,7 @@ export function Payroll() {
                             setIsPayslipOpen(true);
                           }}
                           className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-                          title="View Printable Payslip"
+                          title="View Printable Wage Slip"
                         >
                           <FileText className="w-4 h-4" />
                         </button>
@@ -495,12 +558,12 @@ export function Payroll() {
         )}
       </div>
 
-      {/* Add / Edit Payroll Modal */}
+      {/* Add / Edit Weekly Payroll Modal */}
       {isModalOpen && (
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title={editingPayroll ? 'Edit Employee Payroll' : 'Generate Employee Payroll'}
+          title={editingPayroll ? 'Edit Weekly Wage Record' : 'Create Weekly Wage Slip'}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -518,78 +581,115 @@ export function Payroll() {
                 <option value="">Select Employee</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.role.replace('_', ' ')}) {emp.phone ? `- ${emp.phone}` : ''}
+                    {emp.name} ({emp.role.replace('_', ' ')})
                   </option>
                 ))}
               </select>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Payroll Week (Period) *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  value={formData.payroll_period}
+                  onChange={(e) => handleWeekChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                >
+                  {weekOptions.map((w) => (
+                    <option key={w.code} value={w.code}>
+                      {w.label}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="week"
+                  value={formData.payroll_period.startsWith('20') && formData.payroll_period.includes('-W') ? formData.payroll_period : ''}
+                  onChange={(e) => e.target.value && handleWeekChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Payroll Month *
+                  Start Date (Mon)
                 </label>
                 <input
-                  type="month"
-                  value={formData.payroll_month}
-                  onChange={(e) => setFormData({ ...formData, payroll_month: e.target.value })}
-                  required
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  type="date"
+                  value={formData.start_date || ''}
+                  onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
               </div>
-
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Base Salary (₹) *
+                  End Date (Sun)
+                </label>
+                <input
+                  type="date"
+                  value={formData.end_date || ''}
+                  onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Weekly Base *
                 </label>
                 <input
                   type="number"
+                  min="0"
                   step="0.01"
                   value={formData.base_salary}
                   onChange={(e) => setFormData({ ...formData, base_salary: e.target.value })}
-                  placeholder="35000"
+                  placeholder="0.00"
                   required
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Site OT / Allowances
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.allowances}
+                  onChange={(e) => setFormData({ ...formData, allowances: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Deductions / Adv.
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.deductions}
+                  onChange={(e) => setFormData({ ...formData, deductions: e.target.value })}
+                  placeholder="0.00"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-1">
-                  + Site Allowances (₹)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.allowances}
-                  onChange={(e) => setFormData({ ...formData, allowances: e.target.value })}
-                  placeholder="5000"
-                  className="w-full px-3 py-2 text-sm bg-emerald-50/40 border border-emerald-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-rose-700 uppercase tracking-wider mb-1">
-                  - Deductions / Advance (₹)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.deductions}
-                  onChange={(e) => setFormData({ ...formData, deductions: e.target.value })}
-                  placeholder="2000"
-                  className="w-full px-3 py-2 text-sm bg-rose-50/40 border border-rose-200 rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Calculated Net Salary Card */}
-            <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider font-semibold text-slate-300">
-                Calculated Net Salary:
-              </span>
-              <span className="text-lg font-black text-brand-400">
+            {/* Live Net Calculation Strip */}
+            <div className="p-3 bg-slate-900 text-white rounded-2xl flex items-center justify-between text-xs">
+              <span className="text-slate-400">Computed Net Payable:</span>
+              <span className="text-base font-black text-brand-400">
                 ₹ {calculateNet().toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </span>
             </div>
@@ -597,17 +697,17 @@ export function Payroll() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Payment Method
+                  Payment Mode
                 </label>
                 <select
                   value={formData.payment_method}
                   onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 >
-                  <option value="bank_transfer">Bank Transfer (NEFT)</option>
-                  <option value="upi">UPI</option>
-                  <option value="cheque">Cheque</option>
+                  <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
+                  <option value="upi">UPI Payout</option>
                   <option value="cash">Petty Cash</option>
+                  <option value="cheque">Cheque</option>
                 </select>
               </div>
 
@@ -629,13 +729,13 @@ export function Payroll() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Txn Ref / UTR / Remarks
+                Txn Ref / UTR / Remarks (Optional)
               </label>
               <input
                 type="text"
                 value={formData.payment_reference}
                 onChange={(e) => setFormData({ ...formData, payment_reference: e.target.value })}
-                placeholder="e.g. UTR-982103841"
+                placeholder="e.g. UTR-982103841 (optional)"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               />
             </div>
@@ -654,7 +754,7 @@ export function Payroll() {
                 className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>{editingPayroll ? 'Update Payroll' : 'Save Payroll Record'}</span>
+                <span>{editingPayroll ? 'Update Weekly Slip' : 'Save Weekly Record'}</span>
               </button>
             </div>
           </form>
@@ -666,7 +766,7 @@ export function Payroll() {
         <Modal
           isOpen={Boolean(payModalItem)}
           onClose={() => setPayModalItem(null)}
-          title={`Disburse Salary: ${payModalItem.employee_name}`}
+          title={`Disburse Weekly Wages: ${payModalItem.employee_name}`}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleMarkAsPaid} className="space-y-4">
@@ -676,8 +776,10 @@ export function Payroll() {
                 <span className="font-bold text-slate-900">{payModalItem.employee_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Month:</span>
-                <span className="font-bold text-slate-900">{payModalItem.payroll_month}</span>
+                <span className="text-slate-400">Week Period:</span>
+                <span className="font-bold text-slate-900 font-mono">
+                  {payModalItem.payroll_period || payModalItem.payroll_month}
+                </span>
               </div>
               <div className="flex justify-between pt-1 border-t border-slate-200">
                 <span className="font-bold text-slate-700">Net Payable:</span>
@@ -698,21 +800,20 @@ export function Payroll() {
               >
                 <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
                 <option value="upi">UPI Payout</option>
-                <option value="cheque">Cheque</option>
                 <option value="cash">Petty Cash</option>
+                <option value="cheque">Cheque</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                UTR / Cheque No / Txn Ref *
+                UTR / Cheque No / Txn Ref (Optional)
               </label>
               <input
                 type="text"
                 value={payForm.payment_reference}
                 onChange={(e) => setPayForm({ ...payForm, payment_reference: e.target.value })}
-                placeholder="e.g. UTR-2026110293"
-                required
+                placeholder="e.g. UTR-2026110293 (optional)"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               />
             </div>
@@ -741,10 +842,10 @@ export function Payroll() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Confirm Payment Disbursed</span>
+                <span>Confirm Disbursement</span>
               </button>
             </div>
           </form>
@@ -756,7 +857,7 @@ export function Payroll() {
         <Modal
           isOpen={isPayslipOpen}
           onClose={() => setIsPayslipOpen(false)}
-          title={`Payslip: ${selectedPayslip.employee_name} (${selectedPayslip.payroll_month})`}
+          title={`Wage Slip: ${selectedPayslip.employee_name} (${selectedPayslip.payroll_period || selectedPayslip.payroll_month})`}
           maxWidth="max-w-lg"
         >
           <div className="space-y-4 print:p-0">
@@ -764,11 +865,18 @@ export function Payroll() {
             <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
               <div className="flex justify-between items-start border-b border-slate-200 pb-3">
                 <div>
-                  <h2 className="text-base font-black text-slate-900 tracking-tight">BUILDTRACK CONSTRUCTION</h2>
-                  <p className="text-[11px] text-slate-500">Official Monthly Salary Statement</p>
+                  <h2 className="text-base font-black text-slate-900 tracking-tight">BUILDTRACK CONSTRUCTION ERP</h2>
+                  <p className="text-[11px] text-slate-500">Official Weekly Wage Statement</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs font-bold text-slate-800 block">Period: {selectedPayslip.payroll_month}</span>
+                  <span className="text-xs font-bold text-slate-800 block font-mono">
+                    {formatPeriodDisplay(selectedPayslip.payroll_period || selectedPayslip.payroll_month)}
+                  </span>
+                  {selectedPayslip.start_date && selectedPayslip.end_date && (
+                    <span className="text-[10px] text-slate-500 block">
+                      {selectedPayslip.start_date} → {selectedPayslip.end_date}
+                    </span>
+                  )}
                   <span
                     className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase mt-1 ${
                       selectedPayslip.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
@@ -807,36 +915,40 @@ export function Payroll() {
                 </div>
                 <div className="divide-y divide-slate-100 p-2 space-y-1">
                   <div className="grid grid-cols-2">
-                    <span className="text-slate-600">Base Salary</span>
+                    <span className="text-slate-600">Weekly Base Wage</span>
                     <span className="text-right font-medium">
                       ₹ {Number(selectedPayslip.base_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 text-emerald-700">
-                    <span>Site & Food Allowances</span>
+                    <span>Site OT / Allowances</span>
                     <span className="text-right font-medium">
                       + ₹ {Number(selectedPayslip.allowances || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 text-rose-700">
-                    <span>Deductions & Advances</span>
+                    <span>Advances & Deductions</span>
                     <span className="text-right font-medium">
                       - ₹ {Number(selectedPayslip.deductions || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 bg-slate-900 text-white p-3 font-bold text-sm">
-                  <span>Net Disbursed Salary</span>
+                  <span>Net Disbursed Wages</span>
                   <span className="text-right text-brand-400 font-black">
                     ₹ {Number(selectedPayslip.net_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
 
-              {selectedPayslip.payment_reference && (
+              {selectedPayslip.payment_reference ? (
                 <div className="text-[11px] text-slate-500">
                   <span>Bank / UTR Reference: </span>
                   <strong className="font-mono text-slate-800">{selectedPayslip.payment_reference}</strong>
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-400 italic">
+                  Payment Reference: Direct Cash / Advance Settlement
                 </div>
               )}
             </div>
@@ -855,7 +967,7 @@ export function Payroll() {
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Print Payslip</span>
+                <span>Print Wage Slip</span>
               </button>
             </div>
           </div>

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'site_engineer',
   phone TEXT,
+  approval_limit REAL DEFAULT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
@@ -34,19 +35,6 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
-);
-
--- Per Role Expenditure Approval Allocation per Project
-CREATE TABLE IF NOT EXISTS project_role_approval_limits (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  project_id INTEGER NOT NULL,
-  role TEXT NOT NULL,
-  can_approve INTEGER NOT NULL DEFAULT 1,
-  max_amount_per_expense REAL DEFAULT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  UNIQUE(project_id, role),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -127,11 +115,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Construction Payroll System
+-- Construction Weekly Payroll System
 CREATE TABLE IF NOT EXISTS payroll (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
-  payroll_month TEXT NOT NULL,
+  payroll_period TEXT NOT NULL,
+  payroll_month TEXT,
+  start_date TEXT,
+  end_date TEXT,
   base_salary REAL NOT NULL DEFAULT 0.0,
   allowances REAL NOT NULL DEFAULT 0.0,
   deductions REAL NOT NULL DEFAULT 0.0,
@@ -145,7 +136,7 @@ CREATE TABLE IF NOT EXISTS payroll (
   created_by INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  UNIQUE(user_id, payroll_month),
+  UNIQUE(user_id, payroll_period),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 );
@@ -177,21 +168,32 @@ export async function initializeDatabase() {
   }
 
   // Safe migrations for newly added columns if table previously existed
-  const newExpenseCols = [
-    { col: 'approved_by', def: 'INTEGER DEFAULT NULL' },
-    { col: 'approved_at', def: 'TEXT DEFAULT NULL' },
-    { col: 'approval_comments', def: 'TEXT DEFAULT NULL' },
-    { col: 'processed_by', def: 'INTEGER DEFAULT NULL' },
-    { col: 'processed_at', def: 'TEXT DEFAULT NULL' },
-    { col: 'payment_reference', def: 'TEXT DEFAULT NULL' },
+  const newCols = [
+    { table: 'users', col: 'approval_limit', def: 'REAL DEFAULT NULL' },
+    { table: 'expenses', col: 'approved_by', def: 'INTEGER DEFAULT NULL' },
+    { table: 'expenses', col: 'approved_at', def: 'TEXT DEFAULT NULL' },
+    { table: 'expenses', col: 'approval_comments', def: 'TEXT DEFAULT NULL' },
+    { table: 'expenses', col: 'processed_by', def: 'INTEGER DEFAULT NULL' },
+    { table: 'expenses', col: 'processed_at', def: 'TEXT DEFAULT NULL' },
+    { table: 'expenses', col: 'payment_reference', def: 'TEXT DEFAULT NULL' },
+    { table: 'payroll', col: 'payroll_period', def: 'TEXT' },
+    { table: 'payroll', col: 'start_date', def: 'TEXT' },
+    { table: 'payroll', col: 'end_date', def: 'TEXT' },
   ];
 
-  for (const { col, def } of newExpenseCols) {
+  for (const { table, col, def } of newCols) {
     try {
-      await db.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`);
+      await db.execute(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
     } catch (e) {
       // Column already exists, safe to ignore
     }
+  }
+
+  // Backfill payroll_period from payroll_month if any exists
+  try {
+    await db.execute("UPDATE payroll SET payroll_period = payroll_month WHERE payroll_period IS NULL AND payroll_month IS NOT NULL");
+  } catch (e) {
+    // safe to ignore
   }
 
   // Seed standard master categories if missing

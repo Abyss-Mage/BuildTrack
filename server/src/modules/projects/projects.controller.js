@@ -39,18 +39,11 @@ export const updateProject = asyncHandler(async (req, res) => {
 });
 
 export const updateRoleLimits = asyncHandler(async (req, res) => {
-  const project = await ProjectsService.updateRoleLimits(req.params.id, req.body.role_limits || req.body);
-
-  await logAudit(req, {
-    action: 'ROLE_LIMITS_UPDATE',
-    entityType: 'project',
-    entityId: req.params.id,
-    details: { project_name: project.name, role_limits: project.role_limits },
-  });
+  const project = await ProjectsService.updateRoleLimits(req.params.id);
 
   res.status(200).json({
     success: true,
-    message: 'Expenditure approval limits updated successfully for this project',
+    message: 'Approval limits are managed per user account',
     data: project,
   });
 });

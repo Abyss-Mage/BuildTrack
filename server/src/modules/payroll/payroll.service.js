@@ -1,11 +1,18 @@
 import { PayrollRepository } from './payroll.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 
-function formatMonthLabel(monthStr) {
-  if (!monthStr || !monthStr.includes('-')) return monthStr;
-  const [year, month] = monthStr.split('-');
-  const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
-  return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+function formatPeriodLabel(periodStr) {
+  if (!periodStr) return '';
+  if (periodStr.includes('-W')) {
+    const [year, week] = periodStr.split('-W');
+    return `Week ${parseInt(week, 10)}, ${year}`;
+  }
+  if (periodStr.includes('-')) {
+    const [year, month] = periodStr.split('-');
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1);
+    return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  }
+  return periodStr;
 }
 
 function cleanPhoneNumber(phone) {
@@ -29,8 +36,8 @@ export class PayrollService {
     return PayrollRepository.findAll(filters);
   }
 
-  static async getMonthlySummary(month) {
-    return PayrollRepository.getMonthlySummary(month);
+  static async getMonthlySummary(period) {
+    return PayrollRepository.getMonthlySummary(period);
   }
 
   static async getPayrollById(id, user) {
@@ -45,13 +52,14 @@ export class PayrollService {
   }
 
   static async createPayroll(data, createdById) {
-    if (!data.user_id || !data.payroll_month) {
-      throw ApiError.badRequest('Employee (user_id) and payroll month are required');
+    const period = (data.payroll_period || data.payroll_month || '').trim();
+    if (!data.user_id || !period) {
+      throw ApiError.badRequest('Employee (user_id) and weekly payroll period are required');
     }
 
-    const existing = await PayrollRepository.findByUserAndMonth(data.user_id, data.payroll_month.trim());
+    const existing = await PayrollRepository.findByUserAndPeriod(data.user_id, period);
     if (existing) {
-      throw ApiError.conflict(`A payroll record for this employee already exists for month ${data.payroll_month}`);
+      throw ApiError.conflict(`A payroll record for this employee already exists for period ${period}`);
     }
 
     return PayrollRepository.create(data, createdById);
@@ -72,7 +80,7 @@ export class PayrollService {
     return PayrollRepository.update(id, {
       status: 'paid',
       payment_date: data.payment_date || now,
-      payment_reference: data.payment_reference || existing.payment_reference,
+      payment_reference: data.payment_reference ? data.payment_reference.trim() : null,
       payment_method: data.payment_method || existing.payment_method,
       notes: data.notes || existing.notes,
     });
@@ -89,7 +97,12 @@ export class PayrollService {
    * Builds the formatted WhatsApp message for an employee payroll record
    */
   static formatWhatsAppText(item) {
-    const monthLabel = formatMonthLabel(item.payroll_month);
+    const periodLabel = item.payroll_period || item.payroll_month;
+    const readablePeriod = formatPeriodLabel(periodLabel);
+    const dateRangeStr = item.start_date && item.end_date
+      ? `(${item.start_date} to ${item.end_date})`
+      : '';
+
     const netFormatted = Number(item.net_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const baseFormatted = Number(item.base_salary).toLocaleString('en-IN', { minimumFractionDigits: 2 });
     const allowFormatted = Number(item.allowances || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
@@ -98,29 +111,30 @@ export class PayrollService {
     const isPaid = item.status === 'paid';
 
     let msg = `🏗️ *BUILDTRACK CONSTRUCTION ERP*\n`;
-    msg += `📄 *SALARY PAYSLIP - ${monthLabel.toUpperCase()}*\n\n`;
+    msg += `📄 *WEEKLY WAGES / PAYSLIP*\n`;
+    msg += `🗓️ *Period:* ${readablePeriod} ${dateRangeStr}\n\n`;
     msg += `Hello *${item.employee_name}*,\n`;
-    msg += `Your salary for *${monthLabel}* has been calculated and processed:\n\n`;
+    msg += `Your site wages for *${readablePeriod}* have been processed:\n\n`;
     msg += `💼 *Designation:* ${roleTitle}\n`;
-    msg += `💵 *Base Salary:* ₹${baseFormatted}\n`;
+    msg += `💵 *Weekly Base Wage:* ₹${baseFormatted}\n`;
     if (Number(item.allowances) > 0) {
-      msg += `➕ *Site Allowances:* ₹${allowFormatted}\n`;
+      msg += `➕ *Site Overtime / Allowances:* ₹${allowFormatted}\n`;
     }
     if (Number(item.deductions) > 0) {
-      msg += `➖ *Deductions / Advances:* ₹${deductFormatted}\n`;
+      msg += `➖ *Site Advances / Deductions:* ₹${deductFormatted}\n`;
     }
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `💰 *NET DISBURSED:* *₹${netFormatted}*\n`;
+    msg += `💰 *NET PAYABLE:* *₹${netFormatted}*\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📊 *Status:* ${isPaid ? 'PAID & SETTLED ✅' : 'PENDING DISBURSEMENT ⏳'}\n`;
-    msg += `💳 *Payment Mode:* ${(item.payment_method || 'bank_transfer').replace('_', ' ').toUpperCase()}\n`;
+    msg += `💳 *Disbursement Mode:* ${(item.payment_method || 'bank_transfer').replace('_', ' ').toUpperCase()}\n`;
     if (item.payment_reference) {
       msg += `📌 *Txn / UTR Ref:* ${item.payment_reference}\n`;
     }
     if (item.payment_date) {
       msg += `📅 *Date of Payment:* ${item.payment_date}\n`;
     }
-    msg += `\nFor queries or detailed tax breakdown, contact the Accounts Department.\n`;
+    msg += `\nFor any queries regarding weekly hours or rate calculations, please contact the Site Accounts Office.\n`;
     msg += `_Thank you for your hard work and dedication!_`;
 
     return msg;
@@ -147,14 +161,15 @@ export class PayrollService {
       whatsappUrl: webUrl,
       status: item.status,
       netSalary: item.net_salary,
+      period: item.payroll_period || item.payroll_month,
     };
   }
 
   /**
-   * Broadcast WhatsApp messages for all employees in a given month
+   * Broadcast WhatsApp messages for all employees in a given period/week
    */
-  static async getMonthlyBroadcastList(month) {
-    const records = await PayrollRepository.findAll({ month });
+  static async getMonthlyBroadcastList(periodOrMonth) {
+    const records = await PayrollRepository.findAll({ period: periodOrMonth });
     const broadcastItems = records.map((r) => this.getWhatsAppPayload(r));
 
     const totalEmployees = broadcastItems.length;
@@ -162,8 +177,8 @@ export class PayrollService {
     const totalAmount = records.reduce((acc, curr) => acc + Number(curr.net_salary), 0);
 
     return {
-      month,
-      monthLabel: formatMonthLabel(month),
+      period: periodOrMonth,
+      periodLabel: formatPeriodLabel(periodOrMonth),
       totalEmployees,
       withValidPhone,
       missingPhoneCount: totalEmployees - withValidPhone,

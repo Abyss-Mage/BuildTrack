@@ -27,6 +27,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
 
+// Trust reverse proxies (ngrok, Hostinger Nginx, Cloudflare)
+app.set('trust proxy', 1);
+
 // Security Headers (relaxed CSP for embedded charts/images)
 app.use(
   helmet({
@@ -67,6 +70,7 @@ const authLimiter = rateLimit({
   max: 30, // 30 attempts per 15 min
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: { success: false, message: 'Too many login attempts. Please try again in 15 minutes.' },
 });
 
@@ -75,6 +79,7 @@ const apiLimiter = rateLimit({
   max: 500,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 
 app.use('/api/auth/login', authLimiter);

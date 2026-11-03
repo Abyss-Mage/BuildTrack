@@ -7,6 +7,7 @@ export const createUserSchema = z.object({
     password: z.string().min(6, 'Password must be at least 6 characters'),
     role: z.enum(['admin', 'project_manager', 'site_engineer', 'accountant']),
     phone: z.string().optional(),
+    approval_limit: z.union([z.number(), z.string(), z.null()]).optional(),
   }),
 });
 
@@ -16,6 +17,7 @@ export const updateUserSchema = z.object({
     email: z.string().email('Invalid email address').optional(),
     role: z.enum(['admin', 'project_manager', 'site_engineer', 'accountant']).optional(),
     phone: z.string().optional(),
+    approval_limit: z.union([z.number(), z.string(), z.null()]).optional(),
     is_active: z.number().int().min(0).max(1).optional(),
     password: z.string().min(6).optional(),
   }),

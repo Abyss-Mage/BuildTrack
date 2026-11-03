@@ -10,6 +10,11 @@ import StatusBadge from '../components/ui/StatusBadge';
 import ExpenseDetailModal from './ExpenseDetailModal';
 import Modal from '../components/ui/Modal';
 import {
+  getISOWeekDetails,
+  getRecentWeeks,
+  formatPeriodDisplay,
+} from '../utils/dateUtils';
+import {
   TrendingUp,
   Clock,
   CheckCircle,
@@ -50,9 +55,11 @@ export function Dashboard() {
   });
   const [selectedExpense, setSelectedExpense] = useState(null);
 
-  // WhatsApp Broadcast State
+  // WhatsApp Weekly Payroll Broadcast State
+  const initialBroadcastWeek = getISOWeekDetails();
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
-  const [broadcastMonth, setBroadcastMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [broadcastPeriod, setBroadcastPeriod] = useState(initialBroadcastWeek.code);
+  const broadcastWeekOptions = getRecentWeeks();
   const [broadcastData, setBroadcastData] = useState(null);
   const [loadingBroadcast, setLoadingBroadcast] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -93,10 +100,10 @@ export function Dashboard() {
     return () => window.removeEventListener('expense-added', handleExpenseAdded);
   }, [selectedProjectId, selectedTimeframe]);
 
-  const loadBroadcastData = async (month) => {
+  const loadBroadcastData = async (period) => {
     try {
       setLoadingBroadcast(true);
-      const res = await api.get(`/payroll/broadcast-list?month=${month}`);
+      const res = await api.get(`/payroll/broadcast-list?period=${period}`);
       setBroadcastData(res.data.data);
     } catch (err) {
       showNotification('Failed to load payroll broadcast data', 'error');
@@ -107,7 +114,7 @@ export function Dashboard() {
 
   const openBroadcastModal = () => {
     setIsBroadcastOpen(true);
-    loadBroadcastData(broadcastMonth);
+    loadBroadcastData(broadcastPeriod);
   };
 
   const handleSendSingleWhatsApp = (item) => {
@@ -127,7 +134,7 @@ export function Dashboard() {
 
       // Record in audit log and database
       await api.post('/payroll/record-broadcast', {
-        month: broadcastMonth,
+        period: broadcastPeriod,
         payroll_ids: payrollIds,
       });
 
@@ -491,23 +498,40 @@ export function Dashboard() {
         <Modal
           isOpen={isBroadcastOpen}
           onClose={() => setIsBroadcastOpen(false)}
-          title="Broadcast Monthly Payroll on WhatsApp"
+          title="Broadcast Weekly Wages on WhatsApp"
           maxWidth="max-w-2xl"
         >
           <div className="space-y-4">
-            {/* Month selector & stats */}
+            {/* Week Period selector & stats */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-200">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Calendar className="w-4 h-4 text-emerald-700" />
-                <span className="text-xs font-bold text-emerald-950">Payroll Month:</span>
-                <input
-                  type="month"
-                  value={broadcastMonth}
+                <span className="text-xs font-bold text-emerald-950">Payroll Week:</span>
+                <select
+                  value={broadcastPeriod}
                   onChange={(e) => {
-                    setBroadcastMonth(e.target.value);
+                    setBroadcastPeriod(e.target.value);
                     loadBroadcastData(e.target.value);
                   }}
                   className="px-2 py-1 text-xs bg-white border border-emerald-300 rounded-lg font-bold text-slate-900 outline-none"
+                >
+                  {broadcastWeekOptions.map((w) => (
+                    <option key={w.code} value={w.code}>
+                      {w.label} {w.code === initialBroadcastWeek.code ? '• Current' : ''}
+                    </option>
+                  ))}
+                </select>
+
+                <input
+                  type="week"
+                  value={broadcastPeriod.startsWith('20') && broadcastPeriod.includes('-W') ? broadcastPeriod : ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setBroadcastPeriod(e.target.value);
+                      loadBroadcastData(e.target.value);
+                    }
+                  }}
+                  className="px-1.5 py-1 text-xs bg-white border border-emerald-300 rounded-lg text-slate-900 outline-none"
                 />
               </div>
 
@@ -526,9 +550,11 @@ export function Dashboard() {
             ) : !broadcastData || broadcastData.items.length === 0 ? (
               <div className="py-10 text-center bg-white rounded-2xl border border-slate-200 p-6">
                 <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
-                <h4 className="text-sm font-bold text-slate-800">No Payroll Slips for {broadcastMonth}</h4>
+                <h4 className="text-sm font-bold text-slate-800">
+                  No Wage Records for {formatPeriodDisplay(broadcastPeriod)}
+                </h4>
                 <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                  Please generate payroll records for this month in the Payroll module before sending WhatsApp notifications.
+                  Please generate wage records for this week in the Payroll module before sending WhatsApp notifications.
                 </p>
                 <button
                   onClick={() => {

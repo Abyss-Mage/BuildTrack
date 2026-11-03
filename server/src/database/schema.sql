@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   role ENUM('admin', 'project_manager', 'site_engineer', 'accountant') NOT NULL DEFAULT 'site_engineer',
   phone VARCHAR(20) DEFAULT NULL,
+  approval_limit DECIMAL(15, 2) DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -31,20 +32,6 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT,
   INDEX idx_projects_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Per Role Expenditure Approval Allocation per Project
-CREATE TABLE IF NOT EXISTS project_role_approval_limits (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  project_id INT NOT NULL,
-  role ENUM('admin', 'project_manager', 'site_engineer', 'accountant') NOT NULL,
-  can_approve TINYINT(1) NOT NULL DEFAULT 1,
-  max_amount_per_expense DECIMAL(15, 2) DEFAULT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_project_role_limit (project_id, role),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  INDEX idx_role_limits_proj (project_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -137,11 +124,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
--- Construction Payroll System
+-- Construction Weekly Payroll System
 CREATE TABLE IF NOT EXISTS payroll (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  payroll_month VARCHAR(7) NOT NULL,
+  payroll_period VARCHAR(50) NOT NULL,
+  payroll_month VARCHAR(7) DEFAULT NULL,
+  start_date DATE DEFAULT NULL,
+  end_date DATE DEFAULT NULL,
   base_salary DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
   allowances DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
   deductions DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
@@ -155,9 +145,9 @@ CREATE TABLE IF NOT EXISTS payroll (
   created_by INT NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_user_month (user_id, payroll_month),
+  UNIQUE KEY uq_user_period (user_id, payroll_period),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT,
-  INDEX idx_payroll_month (payroll_month),
+  INDEX idx_payroll_period (payroll_period),
   INDEX idx_payroll_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

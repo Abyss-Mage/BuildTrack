@@ -1,12 +1,5 @@
 import db from '../../config/database.js';
 
-export const DEFAULT_ROLE_LIMITS = [
-  { role: 'site_engineer', can_approve: 0, max_amount_per_expense: 0 },
-  { role: 'project_manager', can_approve: 1, max_amount_per_expense: 50000.0 },
-  { role: 'accountant', can_approve: 1, max_amount_per_expense: 200000.0 },
-  { role: 'admin', can_approve: 1, max_amount_per_expense: null }, // Unlimited
-];
-
 export class ProjectsRepository {
   /**
    * Everyone can see all projects in the company.
@@ -26,8 +19,6 @@ export class ProjectsRepository {
     `;
 
     const params = [];
-
-    // Note: Person allocation removed. Everyone in the company can see every project!
 
     if (filters.status) {
       sql += ' AND p.status = ?';
@@ -77,7 +68,7 @@ export class ProjectsRepository {
   }
 
   static async findById(id) {
-    const project = await db.getOne(
+    return db.getOne(
       `SELECT 
         p.*,
         u.name as creator_name,
@@ -90,76 +81,10 @@ export class ProjectsRepository {
       GROUP BY p.id`,
       [id]
     );
-
-    if (!project) return null;
-
-    // Fetch Role Expenditure Approval Allocations
-    let roleLimits = await db.getAll(
-      'SELECT role, can_approve, max_amount_per_expense FROM project_role_approval_limits WHERE project_id = ?',
-      [id]
-    );
-
-    // If not seeded yet, initialize with defaults
-    if (!roleLimits || roleLimits.length === 0) {
-      await this.initDefaultRoleLimits(id);
-      roleLimits = await db.getAll(
-        'SELECT role, can_approve, max_amount_per_expense FROM project_role_approval_limits WHERE project_id = ?',
-        [id]
-      );
-    }
-
-    project.role_limits = roleLimits;
-    return project;
   }
 
   static async findByCode(code) {
     return db.getOne('SELECT * FROM projects WHERE code = ?', [code]);
-  }
-
-  static async initDefaultRoleLimits(projectId) {
-    for (const item of DEFAULT_ROLE_LIMITS) {
-      const existing = await db.getOne(
-        'SELECT id FROM project_role_approval_limits WHERE project_id = ? AND role = ?',
-        [projectId, item.role]
-      );
-      if (!existing) {
-        await db.execute(
-          `INSERT INTO project_role_approval_limits (project_id, role, can_approve, max_amount_per_expense)
-           VALUES (?, ?, ?, ?)`,
-          [projectId, item.role, item.can_approve, item.max_amount_per_expense]
-        );
-      }
-    }
-  }
-
-  static async setRoleLimits(projectId, roleLimits = []) {
-    for (const item of roleLimits) {
-      if (!item.role) continue;
-      const canApprove = item.can_approve !== undefined ? (item.can_approve ? 1 : 0) : 1;
-      const maxAmount = item.max_amount_per_expense === '' || item.max_amount_per_expense === null || item.max_amount_per_expense === undefined
-        ? null
-        : Number(item.max_amount_per_expense);
-
-      const existing = await db.getOne(
-        'SELECT id FROM project_role_approval_limits WHERE project_id = ? AND role = ?',
-        [projectId, item.role]
-      );
-
-      if (existing) {
-        await db.execute(
-          `UPDATE project_role_approval_limits
-           SET can_approve = ?, max_amount_per_expense = ?
-           WHERE project_id = ? AND role = ?`,
-          [canApprove, maxAmount, projectId, item.role]
-        );
-      } else {
-        await db.execute(
-          `INSERT INTO project_role_approval_limits (project_id, role, can_approve, max_amount_per_expense)
-           VALUES (?, ?, ?, ?)`,
-          [projectId, item.role, canApprove, maxAmount]
-        );
-      }
-    }
   }
 
   static async create(data, createdById) {
@@ -179,13 +104,6 @@ export class ProjectsRepository {
       ]
     );
 
-    // Initialize or apply Role Expenditure Approval Allocations
-    if (data.role_limits && Array.isArray(data.role_limits) && data.role_limits.length > 0) {
-      await this.setRoleLimits(id, data.role_limits);
-    } else {
-      await this.initDefaultRoleLimits(id);
-    }
-
     return this.findById(id);
   }
 
@@ -204,11 +122,6 @@ export class ProjectsRepository {
     if (fields.length > 0) {
       values.push(id);
       await db.execute(`UPDATE projects SET ${fields.join(', ')} WHERE id = ?`, values);
-    }
-
-    // Update Role Expenditure Approval Allocations if provided
-    if (data.role_limits && Array.isArray(data.role_limits)) {
-      await this.setRoleLimits(id, data.role_limits);
     }
 
     return this.findById(id);

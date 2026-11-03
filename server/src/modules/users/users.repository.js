@@ -2,7 +2,7 @@ import db from '../../config/database.js';
 
 export class UsersRepository {
   static async findAll(filters = {}) {
-    let sql = 'SELECT id, name, email, role, phone, is_active, created_at, updated_at FROM users WHERE 1=1';
+    let sql = 'SELECT id, name, email, role, phone, approval_limit, is_active, created_at, updated_at FROM users WHERE 1=1';
     const params = [];
 
     if (filters.role) {
@@ -37,7 +37,7 @@ export class UsersRepository {
 
   static async findById(id) {
     return db.getOne(
-      'SELECT id, name, email, role, phone, is_active, created_at, updated_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, phone, approval_limit, is_active, created_at, updated_at FROM users WHERE id = ?',
       [id]
     );
   }
@@ -46,10 +46,14 @@ export class UsersRepository {
     return db.getOne('SELECT * FROM users WHERE email = ?', [email]);
   }
 
-  static async create({ name, email, password_hash, role, phone }) {
+  static async create({ name, email, password_hash, role, phone, approval_limit }) {
+    const limit = (approval_limit !== undefined && approval_limit !== '' && approval_limit !== null)
+      ? Number(approval_limit)
+      : null;
+
     const id = await db.insert(
-      'INSERT INTO users (name, email, password_hash, role, phone, is_active) VALUES (?, ?, ?, ?, ?, 1)',
-      [name, email, password_hash, role, phone || null]
+      'INSERT INTO users (name, email, password_hash, role, phone, approval_limit, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)',
+      [name, email, password_hash, role, phone || null, limit]
     );
     return this.findById(id);
   }

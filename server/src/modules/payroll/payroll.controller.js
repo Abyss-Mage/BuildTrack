@@ -11,7 +11,8 @@ export class PayrollController {
   });
 
   static getSummary = asyncHandler(async (req, res) => {
-    const summary = await PayrollService.getMonthlySummary(req.query.month);
+    const period = req.query.period || req.query.month;
+    const summary = await PayrollService.getMonthlySummary(period);
     return ApiResponse.success(res, summary, 'Payroll summary retrieved');
   });
 
@@ -29,7 +30,7 @@ export class PayrollController {
       entityId: item.id,
       details: {
         employee: item.employee_name,
-        month: item.payroll_month,
+        period: item.payroll_period || item.payroll_month,
         net_salary: item.net_salary,
       },
     });
@@ -59,9 +60,9 @@ export class PayrollController {
       entityId: item.id,
       details: {
         employee: item.employee_name,
-        month: item.payroll_month,
+        period: item.payroll_period || item.payroll_month,
         net_salary: item.net_salary,
-        payment_reference: req.body.payment_reference,
+        payment_reference: req.body.payment_reference || 'N/A',
       },
     });
 
@@ -88,13 +89,14 @@ export class PayrollController {
   });
 
   static getMonthlyBroadcast = asyncHandler(async (req, res) => {
-    const month = req.query.month || new Date().toISOString().slice(0, 7);
-    const broadcast = await PayrollService.getMonthlyBroadcastList(month);
-    return ApiResponse.success(res, broadcast, 'Monthly WhatsApp broadcast list ready');
+    const period = req.query.period || req.query.month || new Date().toISOString().slice(0, 7);
+    const broadcast = await PayrollService.getMonthlyBroadcastList(period);
+    return ApiResponse.success(res, broadcast, 'WhatsApp broadcast list ready');
   });
 
   static recordBroadcastSent = asyncHandler(async (req, res) => {
-    const { month, payroll_ids } = req.body;
+    const { period, month, payroll_ids } = req.body;
+    const batchKey = period || month || 'BATCH';
 
     if (payroll_ids && Array.isArray(payroll_ids)) {
       for (const id of payroll_ids) {
@@ -105,9 +107,9 @@ export class PayrollController {
     await logAudit(req, {
       action: 'PAYROLL_WHATSAPP_BROADCAST',
       entityType: 'payroll',
-      entityId: month || 'BATCH',
+      entityId: String(batchKey),
       details: {
-        month,
+        period: batchKey,
         recipients_count: payroll_ids?.length || 0,
       },
     });

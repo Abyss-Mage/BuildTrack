@@ -7,7 +7,7 @@ import { ApiError } from '../../utils/ApiError.js';
 export class AuthService {
   static async login(email, password) {
     const user = await db.getOne(
-      'SELECT id, name, email, password_hash, role, phone, is_active FROM users WHERE email = ?',
+      'SELECT id, name, email, password_hash, role, phone, approval_limit, is_active FROM users WHERE email = ?',
       [email.toLowerCase().trim()]
     );
 
@@ -69,10 +69,10 @@ export class AuthService {
       values.push(phone ? phone.trim() : null);
     }
     if (fields.length === 0) {
-      return db.getOne('SELECT id, name, email, role, phone, is_active FROM users WHERE id = ?', [userId]);
+      return db.getOne('SELECT id, name, email, role, phone, approval_limit, is_active FROM users WHERE id = ?', [userId]);
     }
     values.push(userId);
     await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
-    return db.getOne('SELECT id, name, email, role, phone, is_active FROM users WHERE id = ?', [userId]);
+    return db.getOne('SELECT id, name, email, role, phone, approval_limit, is_active FROM users WHERE id = ?', [userId]);
   }
 }

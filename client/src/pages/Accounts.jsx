@@ -697,14 +697,13 @@ export function Accounts() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                UTR / Transaction Ref / Cheque No *
+                UTR / Transaction Ref / Cheque No (Optional)
               </label>
               <input
                 type="text"
                 value={payoutForm.payment_reference}
                 onChange={(e) => setPayoutForm({ ...payoutForm, payment_reference: e.target.value })}
-                placeholder="e.g. UTR492810932 or CHQ-00492"
-                required
+                placeholder="e.g. UTR492810932 or CHQ-00492 (optional)"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               />
             </div>

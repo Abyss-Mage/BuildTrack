@@ -57,12 +57,6 @@ export function Projects() {
     status: 'active',
   });
 
-  // Per Role Expenditure Approval Allocation
-  const [roleLimits, setRoleLimits] = useState({
-    pm_limit: '50000',
-    accountant_limit: '200000',
-  });
-
   const canManageProjects = ['admin', 'project_manager'].includes(user?.role);
 
   const loadProjects = async () => {
@@ -115,10 +109,6 @@ export function Projects() {
       end_date: '',
       status: 'active',
     });
-    setRoleLimits({
-      pm_limit: '50000',
-      accountant_limit: '200000',
-    });
     setIsModalOpen(true);
   };
 
@@ -139,18 +129,6 @@ export function Projects() {
         status: full.status,
       });
 
-      // Populate role limits
-      const pmLimitObj = full.role_limits?.find((r) => r.role === 'project_manager');
-      const accLimitObj = full.role_limits?.find((r) => r.role === 'accountant');
-      setRoleLimits({
-        pm_limit: pmLimitObj?.max_amount_per_expense !== null && pmLimitObj?.max_amount_per_expense !== undefined
-          ? String(pmLimitObj.max_amount_per_expense)
-          : '50000',
-        accountant_limit: accLimitObj?.max_amount_per_expense !== null && accLimitObj?.max_amount_per_expense !== undefined
-          ? String(accLimitObj.max_amount_per_expense)
-          : '200000',
-      });
-
       setIsModalOpen(true);
     } catch (err) {
       showNotification('Failed to load project details', 'error');
@@ -161,38 +139,13 @@ export function Projects() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      const payload = {
-        ...formData,
-        role_limits: [
-          {
-            role: 'project_manager',
-            can_approve: 1,
-            max_amount_per_expense: roleLimits.pm_limit ? Number(roleLimits.pm_limit) : null,
-          },
-          {
-            role: 'accountant',
-            can_approve: 1,
-            max_amount_per_expense: roleLimits.accountant_limit ? Number(roleLimits.accountant_limit) : null,
-          },
-          {
-            role: 'admin',
-            can_approve: 1,
-            max_amount_per_expense: null,
-          },
-          {
-            role: 'site_engineer',
-            can_approve: 0,
-            max_amount_per_expense: 0,
-          },
-        ],
-      };
 
       if (editingProject) {
-        await api.put(`/projects/${editingProject.id}`, payload);
-        showNotification('Project and role approval limits updated successfully');
+        await api.put(`/projects/${editingProject.id}`, formData);
+        showNotification('Project updated successfully');
       } else {
-        await api.post('/projects', payload);
-        showNotification('New project created with role approval limits');
+        await api.post('/projects', formData);
+        showNotification('New project site created successfully');
       }
       setIsModalOpen(false);
       loadProjects();
@@ -586,58 +539,6 @@ export function Projects() {
               />
             </div>
 
-            {/* Requirement 2: Per Role Expenditure Approval Allocation */}
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-brand-600" />
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                  Per-Role Expenditure Approval Allocation
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Configure maximum expenditure approval thresholds for each role on this project site:
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Project Manager Approval Limit (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={roleLimits.pm_limit}
-                    onChange={(e) => setRoleLimits({ ...roleLimits, pm_limit: e.target.value })}
-                    placeholder="e.g. 50000"
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Vouchers above this amount require Super Admin authorization.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Accountant Payout Limit (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={roleLimits.accountant_limit}
-                    onChange={(e) => setRoleLimits({ ...roleLimits, accountant_limit: e.target.value })}
-                    placeholder="e.g. 200000"
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">
-                    Single payout disbursement threshold for finance.
-                  </span>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
-                <span>Super Admin: <strong>Unlimited</strong></span>
-                <span>Site Engineer: <strong>Submission Only</strong></span>
-              </div>
-            </div>
-
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
@@ -652,7 +553,7 @@ export function Projects() {
                 className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>{editingProject ? 'Update Site & Allocations' : 'Create Site'}</span>
+                <span>{editingProject ? 'Update Project' : 'Create Site'}</span>
               </button>
             </div>
           </form>

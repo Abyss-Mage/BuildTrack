@@ -211,7 +211,19 @@ export function Approvals() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {!isAdmin && (
+            <span className="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
+              Your Approval Authority:{' '}
+              <strong className="text-slate-900">
+                {user?.approval_limit !== null && user?.approval_limit !== undefined
+                  ? Number(user.approval_limit) === 0
+                    ? '₹0 (Submission Only)'
+                    : `₹ ${Number(user.approval_limit).toLocaleString('en-IN')}`
+                  : 'Unlimited'}
+              </strong>
+            </span>
+          )}
           <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold font-mono">
             {queue.length} Pending Actions • ₹ {totalQueueAmount.toLocaleString('en-IN')}
           </span>
@@ -333,17 +345,20 @@ export function Approvals() {
           {queue.map((item) => {
             const isApprovedForPayout = item.status === 'approved';
 
-            // Check if expense exceeds PM's project approval limit
-            const hasExceededRoleLimit =
+            // Check if expense exceeds user account's approval limit
+            const hasExceededAccountLimit =
               !isAdmin &&
-              item.role_max_limit !== null &&
-              item.role_max_limit !== undefined &&
-              Number(item.amount) > Number(item.role_max_limit);
+              user?.approval_limit !== null &&
+              user?.approval_limit !== undefined &&
+              Number(item.amount) > Number(user.approval_limit);
 
-            const isUnauthorizedRole =
-              !isAdmin && item.role_can_approve !== undefined && item.role_can_approve === 0;
+            const isUnauthorizedAccount =
+              !isAdmin &&
+              user?.approval_limit !== null &&
+              user?.approval_limit !== undefined &&
+              Number(user.approval_limit) === 0;
 
-            const cannotApproveDueToLimit = hasExceededRoleLimit || isUnauthorizedRole;
+            const cannotApproveDueToLimit = hasExceededAccountLimit || isUnauthorizedAccount;
 
             return (
               <div
@@ -444,12 +459,12 @@ export function Approvals() {
                           className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                           title={
                             cannotApproveDueToLimit && !isAdmin
-                              ? 'This amount exceeds your role approval limit for this project. Only an Admin can approve.'
+                              ? `Voucher amount exceeds your account approval authority (₹${Number(user?.approval_limit || 0).toLocaleString('en-IN')}). Super Admin approval required.`
                               : 'Approve this expenditure'
                           }
                         >
                           <Check className="w-4 h-4" />
-                          <span>{cannotApproveDueToLimit && !isAdmin ? 'Admin Approval Req.' : 'Approve'}</span>
+                          <span>{cannotApproveDueToLimit && !isAdmin ? 'Higher Approval Req.' : 'Approve'}</span>
                         </button>
                       </>
                     )}

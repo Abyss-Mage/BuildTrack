@@ -33,9 +33,7 @@ export class ProjectsService {
     return ProjectsRepository.update(id, data);
   }
 
-  static async updateRoleLimits(id, roleLimits) {
-    await this.getProjectById(id);
-    await ProjectsRepository.setRoleLimits(id, roleLimits);
+  static async updateRoleLimits(id) {
     return this.getProjectById(id);
   }
 }

@@ -18,9 +18,12 @@ export class PayrollRepository {
 
     const params = [];
 
-    if (filters.month) {
-      sql += ' AND pr.payroll_month = ?';
-      params.push(filters.month);
+    if (filters.period) {
+      sql += ' AND (pr.payroll_period = ? OR pr.payroll_month = ?)';
+      params.push(filters.period, filters.period);
+    } else if (filters.month) {
+      sql += ' AND (pr.payroll_month = ? OR pr.payroll_period = ? OR pr.payroll_period LIKE ?)';
+      params.push(filters.month, filters.month, `${filters.month}%`);
     }
 
     if (filters.userId) {
@@ -71,14 +74,18 @@ export class PayrollRepository {
     return db.getOne(sql, [id]);
   }
 
-  static async findByUserAndMonth(userId, month) {
+  static async findByUserAndPeriod(userId, period) {
     return db.getOne(
-      'SELECT * FROM payroll WHERE user_id = ? AND payroll_month = ?',
-      [userId, month]
+      'SELECT * FROM payroll WHERE user_id = ? AND (payroll_period = ? OR payroll_month = ?)',
+      [userId, period, period]
     );
   }
 
-  static async getMonthlySummary(month) {
+  static async findByUserAndMonth(userId, month) {
+    return this.findByUserAndPeriod(userId, month);
+  }
+
+  static async getMonthlySummary(period) {
     let sql = `
       SELECT 
         COUNT(*) as total_employees,
@@ -91,9 +98,9 @@ export class PayrollRepository {
       WHERE 1=1
     `;
     const params = [];
-    if (month) {
-      sql += ' AND payroll_month = ?';
-      params.push(month);
+    if (period) {
+      sql += ' AND (payroll_period = ? OR payroll_month = ?)';
+      params.push(period, period);
     }
 
     return db.getOne(sql, params);
@@ -103,16 +110,23 @@ export class PayrollRepository {
     const base = Number(data.base_salary || 0);
     const allow = Number(data.allowances || 0);
     const deduct = Number(data.deductions || 0);
-    const net = base + allow - deduct;
+    const net = Math.max(0, base + allow - deduct);
+
+    const period = (data.payroll_period || data.payroll_month || '').trim();
+    const month = data.payroll_month || (data.start_date ? data.start_date.slice(0, 7) : period.slice(0, 7));
 
     const id = await db.insert(
       `INSERT INTO payroll (
-        user_id, payroll_month, base_salary, allowances, deductions, net_salary,
+        user_id, payroll_period, payroll_month, start_date, end_date,
+        base_salary, allowances, deductions, net_salary,
         status, payment_method, payment_date, payment_reference, notes, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.user_id,
-        data.payroll_month.trim(),
+        period,
+        month,
+        data.start_date || null,
+        data.end_date || null,
         base,
         allow,
         deduct,
@@ -120,7 +134,7 @@ export class PayrollRepository {
         data.status || 'pending',
         data.payment_method || 'bank_transfer',
         data.payment_date || null,
-        data.payment_reference || null,
+        data.payment_reference ? data.payment_reference.trim() : null,
         data.notes || null,
         createdById,
       ]
@@ -136,7 +150,7 @@ export class PayrollRepository {
     const base = data.base_salary !== undefined ? Number(data.base_salary) : Number(existing.base_salary);
     const allow = data.allowances !== undefined ? Number(data.allowances) : Number(existing.allowances);
     const deduct = data.deductions !== undefined ? Number(data.deductions) : Number(existing.deductions);
-    const net = base + allow - deduct;
+    const net = Math.max(0, base + allow - deduct);
 
     const fields = [
       'base_salary = ?',
@@ -147,6 +161,11 @@ export class PayrollRepository {
     const values = [base, allow, deduct, net];
 
     const allowed = [
+      'user_id',
+      'payroll_period',
+      'payroll_month',
+      'start_date',
+      'end_date',
       'status',
       'payment_method',
       'payment_date',
@@ -158,7 +177,11 @@ export class PayrollRepository {
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
-        values.push(data[key]);
+        if (key === 'payment_reference') {
+          values.push(data[key] ? String(data[key]).trim() : null);
+        } else {
+          values.push(data[key]);
+        }
       }
     }
 

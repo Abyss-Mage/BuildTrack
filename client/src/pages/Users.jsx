@@ -43,6 +43,7 @@ export function Users() {
     password: '',
     role: 'site_engineer',
     phone: '',
+    approval_limit: '',
   });
 
   // Edit User Modal State
@@ -53,6 +54,7 @@ export function Users() {
     email: '',
     role: 'site_engineer',
     phone: '',
+    approval_limit: '',
     is_active: 1,
     newPassword: '',
   });
@@ -112,7 +114,11 @@ export function Users() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
-      await api.post('/users', createFormData);
+      const payload = {
+        ...createFormData,
+        approval_limit: createFormData.approval_limit === '' ? null : Number(createFormData.approval_limit),
+      };
+      await api.post('/users', payload);
       showNotification('New user created successfully');
       setIsCreateOpen(false);
       setCreateFormData({
@@ -121,6 +127,7 @@ export function Users() {
         password: '',
         role: 'site_engineer',
         phone: '',
+        approval_limit: '',
       });
       loadUsers();
     } catch (err) {
@@ -137,6 +144,7 @@ export function Users() {
       email: user.email || '',
       role: user.role || 'site_engineer',
       phone: user.phone || '',
+      approval_limit: user.approval_limit !== null && user.approval_limit !== undefined ? String(user.approval_limit) : '',
       is_active: user.is_active ? 1 : 0,
       newPassword: '',
     });
@@ -153,6 +161,7 @@ export function Users() {
         email: editFormData.email.trim(),
         role: editFormData.role,
         phone: editFormData.phone?.trim() || null,
+        approval_limit: editFormData.approval_limit === '' ? null : Number(editFormData.approval_limit),
         is_active: editFormData.is_active,
       };
 
@@ -307,6 +316,7 @@ export function Users() {
                 <tr>
                   <th className="py-3 px-4">User</th>
                   <th className="py-3 px-4">System Role</th>
+                  <th className="py-3 px-4">Approval Authority</th>
                   <th className="py-3 px-4">Phone (WhatsApp)</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -332,6 +342,26 @@ export function Users() {
                         <Shield className="w-3 h-3 text-brand-600" />
                         {u.role.replace('_', ' ')}
                       </span>
+                    </td>
+
+                    <td className="py-3 px-4">
+                      {u.role === 'admin' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          Unlimited (Admin)
+                        </span>
+                      ) : u.approval_limit === 0 ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                          ₹0 (Submission Only)
+                        </span>
+                      ) : u.approval_limit !== null && u.approval_limit !== undefined ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                          Max ₹ {Number(u.approval_limit).toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                          Unlimited
+                        </span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4 text-slate-600 font-mono text-xs">
@@ -463,6 +493,27 @@ export function Users() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Expenditure Approval Limit (₹)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={createFormData.approval_limit}
+                  onChange={(e) => setCreateFormData({ ...createFormData, approval_limit: e.target.value })}
+                  placeholder="e.g. 50000 (leave blank for Unlimited)"
+                  className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Approval authority cap per single expense. Enter 0 for submission-only accounts. Leave blank for Unlimited.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Phone Number (for WhatsApp Payroll Slips)
               </label>
               <input
@@ -544,6 +595,27 @@ export function Users() {
                 <option value="accountant">Accountant / Finance (Payouts & Payroll)</option>
                 <option value="admin">Super Admin (Full Company Access)</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Expenditure Approval Limit (₹)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={editFormData.approval_limit}
+                  onChange={(e) => setEditFormData({ ...editFormData, approval_limit: e.target.value })}
+                  placeholder="e.g. 50000 (leave blank for Unlimited)"
+                  className="w-full pl-8 pr-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Approval authority cap per single expense. Enter 0 for submission-only accounts. Leave blank for Unlimited.
+              </p>
             </div>
 
             <div>
