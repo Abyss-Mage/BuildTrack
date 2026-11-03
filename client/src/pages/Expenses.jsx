@@ -16,6 +16,10 @@ import {
   Paperclip,
   Loader2,
   X,
+  CreditCard,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export function Expenses() {
@@ -25,16 +29,24 @@ export function Expenses() {
   const [expenses, setExpenses] = useState([]);
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
-  // Filters
+  // Filters State
   const [filters, setFilters] = useState({
     search: '',
     projectId: '',
     categoryId: '',
     status: '',
+    paymentMethod: '',
+    submittedBy: '',
+    hasReceipts: '',
+    minAmount: '',
+    maxAmount: '',
     startDate: '',
     endDate: '',
+    sortBy: 'date_desc',
   });
 
   // Modals
@@ -46,9 +58,14 @@ export function Expenses() {
 
   const loadFilterOptions = async () => {
     try {
-      const [pRes, cRes] = await Promise.all([api.get('/projects'), api.get('/categories')]);
+      const [pRes, cRes, uRes] = await Promise.all([
+        api.get('/projects'),
+        api.get('/categories'),
+        api.get('/users'),
+      ]);
       setProjects(pRes.data.data || []);
       setCategories(cRes.data.data || []);
+      setUsersList(uRes.data.data || []);
     } catch (err) {
       console.error(err);
     }
@@ -62,8 +79,14 @@ export function Expenses() {
       if (filters.projectId) queryParams.append('projectId', filters.projectId);
       if (filters.categoryId) queryParams.append('categoryId', filters.categoryId);
       if (filters.status) queryParams.append('status', filters.status);
+      if (filters.paymentMethod) queryParams.append('paymentMethod', filters.paymentMethod);
+      if (filters.submittedBy) queryParams.append('submittedBy', filters.submittedBy);
+      if (filters.hasReceipts) queryParams.append('hasReceipts', filters.hasReceipts);
+      if (filters.minAmount) queryParams.append('minAmount', filters.minAmount);
+      if (filters.maxAmount) queryParams.append('maxAmount', filters.maxAmount);
       if (filters.startDate) queryParams.append('startDate', filters.startDate);
       if (filters.endDate) queryParams.append('endDate', filters.endDate);
+      if (filters.sortBy) queryParams.append('sortBy', filters.sortBy);
 
       const res = await api.get(`/expenses?${queryParams.toString()}`);
       setExpenses(res.data.data || []);
@@ -109,12 +132,62 @@ export function Expenses() {
       projectId: '',
       categoryId: '',
       status: '',
+      paymentMethod: '',
+      submittedBy: '',
+      hasReceipts: '',
+      minAmount: '',
+      maxAmount: '',
       startDate: '',
       endDate: '',
+      sortBy: 'date_desc',
     });
   };
 
+  const applyDatePreset = (preset) => {
+    const now = new Date();
+    let start = '';
+    let end = now.toISOString().split('T')[0];
+
+    if (preset === 'today') {
+      start = end;
+    } else if (preset === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      start = d.toISOString().split('T')[0];
+    } else if (preset === 'month') {
+      start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    } else if (preset === 'last_month') {
+      const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDayOfPrev = new Date(now.getFullYear(), now.getMonth(), 0);
+      start = prevMonthDate.toISOString().split('T')[0];
+      end = lastDayOfPrev.toISOString().split('T')[0];
+    } else if (preset === 'year') {
+      start = `${now.getFullYear()}-01-01`;
+    } else {
+      start = '';
+      end = '';
+    }
+
+    setFilters((prev) => ({ ...prev, startDate: start, endDate: end }));
+  };
+
+  const isFiltered = Boolean(
+    filters.search ||
+      filters.projectId ||
+      filters.categoryId ||
+      filters.status ||
+      filters.paymentMethod ||
+      filters.submittedBy ||
+      filters.hasReceipts ||
+      filters.minAmount ||
+      filters.maxAmount ||
+      filters.startDate ||
+      filters.endDate ||
+      filters.sortBy !== 'date_desc'
+  );
+
   const totalFilteredAmount = expenses.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const avgAmount = expenses.length > 0 ? totalFilteredAmount / expenses.length : 0;
 
   return (
     <div className="space-y-6">
@@ -145,6 +218,7 @@ export function Expenses() {
 
       {/* Filter Toolbar */}
       <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+        {/* Row 1: Primary Quick Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Search */}
           <div className="relative">
@@ -153,7 +227,7 @@ export function Expenses() {
               type="text"
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search ref #, title, vendor..."
+              placeholder="Search ref #, title, vendor, notes..."
               className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
@@ -165,7 +239,7 @@ export function Expenses() {
               onChange={(e) => setFilters({ ...filters, projectId: e.target.value })}
               className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">All Projects</option>
+              <option value="">All Project Sites</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   [{p.code}] {p.name}
@@ -207,42 +281,211 @@ export function Expenses() {
           </div>
         </div>
 
-        {/* Date range & Reset row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-medium">Date Range:</span>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-            />
-            <span className="text-slate-400">to</span>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-            />
+        {/* Row 2: Secondary / Advanced Filters Toggle & Presets */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+          {/* Quick Date Presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-slate-400 font-medium text-[11px] uppercase mr-1">Date:</span>
+            <button
+              onClick={() => applyDatePreset('all')}
+              className={`px-2.5 py-1 rounded-lg text-xs transition-colors ${
+                !filters.startDate && !filters.endDate ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              onClick={() => applyDatePreset('today')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => applyDatePreset('week')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              Last 7 Days
+            </button>
+            <button
+              onClick={() => applyDatePreset('month')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => applyDatePreset('last_month')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              Last Month
+            </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="text-xs text-slate-500 font-medium">
-              Showing <strong className="text-slate-900">{expenses.length}</strong> vouchers • Total:{' '}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg border border-brand-200"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{showAdvancedFilters ? 'Fewer Filters' : 'More Filters'}</span>
+              {showAdvancedFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {isFiltered && (
+              <button
+                onClick={resetFilters}
+                className="text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset All</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Collapsible Advanced Filters Drawer */}
+        {showAdvancedFilters && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/60 p-3 rounded-2xl">
+            {/* Payment Method */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Payment Method
+              </label>
+              <select
+                value={filters.paymentMethod}
+                onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="">All Payment Modes</option>
+                <option value="cash">Cash / Petty Cash</option>
+                <option value="upi">UPI / GPay / PhonePe</option>
+                <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
+                <option value="cheque">Cheque</option>
+                <option value="credit_card">Company Card</option>
+              </select>
+            </div>
+
+            {/* Submitter / Engineer */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Submitted By
+              </label>
+              <select
+                value={filters.submittedBy}
+                onChange={(e) => setFilters({ ...filters, submittedBy: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="">All Team Members</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role.replace('_', ' ')})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Receipts Attached */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Receipt Attachment
+              </label>
+              <select
+                value={filters.hasReceipts}
+                onChange={(e) => setFilters({ ...filters, hasReceipts: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="">All Vouchers</option>
+                <option value="yes">Only With Attached Receipts</option>
+                <option value="no">Missing Receipts Only</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Sorting
+              </label>
+              <select
+                value={filters.sortBy}
+                onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="date_desc">Date: Newest First</option>
+                <option value="date_asc">Date: Oldest First</option>
+                <option value="amount_desc">Amount: High to Low</option>
+                <option value="amount_asc">Amount: Low to High</option>
+                <option value="ref_asc">Ref #: A to Z</option>
+                <option value="title_asc">Title: A to Z</option>
+              </select>
+            </div>
+
+            {/* Amount Range Min/Max */}
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Amount Range (INR ₹)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  placeholder="Min ₹"
+                  value={filters.minAmount}
+                  onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+                <span className="text-slate-400 text-xs">to</span>
+                <input
+                  type="number"
+                  placeholder="Max ₹"
+                  value={filters.maxAmount}
+                  onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+              </div>
+            </div>
+
+            {/* Custom Date Range */}
+            <div className="sm:col-span-2">
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Custom Date Range
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+                <span className="text-slate-400 text-xs">to</span>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Aggregated Statistical Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-4">
+            <span>
+              Showing <strong className="text-slate-900">{expenses.length}</strong> vouchers
+            </span>
+            <span>•</span>
+            <span>
+              Total Amount:{' '}
               <strong className="text-slate-900 font-mono">
                 ₹ {totalFilteredAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </strong>
             </span>
-
-            {(filters.search || filters.projectId || filters.categoryId || filters.status || filters.startDate || filters.endDate) && (
-              <button
-                onClick={resetFilters}
-                className="text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Reset</span>
-              </button>
-            )}
+            <span>•</span>
+            <span>
+              Average:{' '}
+              <strong className="text-slate-900 font-mono">
+                ₹ {avgAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </strong>
+            </span>
           </div>
         </div>
       </div>
@@ -259,8 +502,16 @@ export function Expenses() {
             <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-base font-semibold text-slate-800">No Expenses Found</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-              No matching expense vouchers found for the selected criteria.
+              No matching expense vouchers found for the selected filter criteria.
             </p>
+            {isFiltered && (
+              <button
+                onClick={resetFilters}
+                className="mt-4 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold"
+              >
+                Clear All Filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -274,7 +525,7 @@ export function Expenses() {
                   <th className="py-3 px-4">Title & Vendor</th>
                   <th className="py-3 px-4 text-right">Amount (₹)</th>
                   <th className="py-3 px-4 text-center">Receipts</th>
-                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Status & Approval</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -332,7 +583,17 @@ export function Expenses() {
                         )}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <StatusBadge status={exp.status} size="xs" />
+                        <div className="space-y-0.5">
+                          <StatusBadge status={exp.status} size="xs" />
+                          {exp.approver_name && (
+                            <span
+                              className="text-[10px] text-slate-500 block truncate max-w-[120px]"
+                              title={`Approved by ${exp.approver_name} (${exp.approver_role})`}
+                            >
+                              By: <strong className="text-emerald-800">{exp.approver_name}</strong>
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">

@@ -13,6 +13,11 @@ import {
   Tag,
   Loader2,
   TrendingUp,
+  Search,
+  X,
+  CreditCard,
+  User,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 export function Reports() {
@@ -21,14 +26,22 @@ export function Reports() {
 
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [usersList, setUsersList] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  // Filters
+  // Filters State
   const [filters, setFilters] = useState({
     projectId: '',
     categoryId: '',
     status: '',
+    paymentMethod: '',
+    submittedBy: '',
+    hasReceipts: '',
+    minAmount: '',
+    maxAmount: '',
+    search: '',
     startDate: '',
     endDate: '',
   });
@@ -38,25 +51,40 @@ export function Reports() {
 
   const loadOptions = async () => {
     try {
-      const [pRes, cRes] = await Promise.all([api.get('/projects'), api.get('/categories')]);
+      const [pRes, cRes, uRes] = await Promise.all([
+        api.get('/projects'),
+        api.get('/categories'),
+        api.get('/users'),
+      ]);
       setProjects(pRes.data.data || []);
       setCategories(cRes.data.data || []);
+      setUsersList(uRes.data.data || []);
     } catch (err) {
       console.error(err);
     }
   };
 
+  const buildQueryParams = () => {
+    const q = new URLSearchParams();
+    if (filters.projectId) q.append('projectId', filters.projectId);
+    if (filters.categoryId) q.append('categoryId', filters.categoryId);
+    if (filters.status) q.append('status', filters.status);
+    if (filters.paymentMethod) q.append('paymentMethod', filters.paymentMethod);
+    if (filters.submittedBy) q.append('submittedBy', filters.submittedBy);
+    if (filters.hasReceipts) q.append('hasReceipts', filters.hasReceipts);
+    if (filters.minAmount) q.append('minAmount', filters.minAmount);
+    if (filters.maxAmount) q.append('maxAmount', filters.maxAmount);
+    if (filters.search) q.append('search', filters.search);
+    if (filters.startDate) q.append('startDate', filters.startDate);
+    if (filters.endDate) q.append('endDate', filters.endDate);
+    return q.toString();
+  };
+
   const loadReportData = async () => {
     try {
       setLoading(true);
-      const queryParams = new URLSearchParams();
-      if (filters.projectId) queryParams.append('projectId', filters.projectId);
-      if (filters.categoryId) queryParams.append('categoryId', filters.categoryId);
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.startDate) queryParams.append('startDate', filters.startDate);
-      if (filters.endDate) queryParams.append('endDate', filters.endDate);
-
-      const res = await api.get(`/reports/expenses?${queryParams.toString()}`);
+      const queryParams = buildQueryParams();
+      const res = await api.get(`/reports/expenses?${queryParams}`);
       setExpenses(res.data.data || []);
     } catch (err) {
       showNotification('Failed to generate report preview', 'error');
@@ -70,20 +98,72 @@ export function Reports() {
   }, []);
 
   useEffect(() => {
-    loadReportData();
+    const timer = setTimeout(() => {
+      loadReportData();
+    }, 200);
+    return () => clearTimeout(timer);
   }, [filters]);
+
+  const applyPreset = (preset) => {
+    const now = new Date();
+    let start = '';
+    let end = now.toISOString().split('T')[0];
+
+    if (preset === 'month') {
+      start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    } else if (preset === 'last30') {
+      const d = new Date();
+      d.setDate(d.getDate() - 30);
+      start = d.toISOString().split('T')[0];
+    } else if (preset === 'quarter') {
+      const d = new Date();
+      d.setDate(d.getDate() - 90);
+      start = d.toISOString().split('T')[0];
+    } else if (preset === 'year') {
+      start = `${now.getFullYear()}-01-01`;
+    } else {
+      start = '';
+      end = '';
+    }
+
+    setFilters((prev) => ({ ...prev, startDate: start, endDate: end }));
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      projectId: '',
+      categoryId: '',
+      status: '',
+      paymentMethod: '',
+      submittedBy: '',
+      hasReceipts: '',
+      minAmount: '',
+      maxAmount: '',
+      search: '',
+      startDate: '',
+      endDate: '',
+    });
+  };
+
+  const isFiltered = Boolean(
+    filters.projectId ||
+      filters.categoryId ||
+      filters.status ||
+      filters.paymentMethod ||
+      filters.submittedBy ||
+      filters.hasReceipts ||
+      filters.minAmount ||
+      filters.maxAmount ||
+      filters.search ||
+      filters.startDate ||
+      filters.endDate
+  );
 
   const handleDownloadPdf = async () => {
     try {
       setDownloadingPdf(true);
-      const queryParams = new URLSearchParams();
-      if (filters.projectId) queryParams.append('projectId', filters.projectId);
-      if (filters.categoryId) queryParams.append('categoryId', filters.categoryId);
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.startDate) queryParams.append('startDate', filters.startDate);
-      if (filters.endDate) queryParams.append('endDate', filters.endDate);
-
-      const response = await api.get(`/reports/expenses/pdf?${queryParams.toString()}`, {
+      const queryParams = buildQueryParams();
+      const response = await api.get(`/reports/expenses/pdf?${queryParams}`, {
         responseType: 'blob',
       });
 
@@ -105,14 +185,8 @@ export function Reports() {
   const handleDownloadExcel = async () => {
     try {
       setDownloadingExcel(true);
-      const queryParams = new URLSearchParams();
-      if (filters.projectId) queryParams.append('projectId', filters.projectId);
-      if (filters.categoryId) queryParams.append('categoryId', filters.categoryId);
-      if (filters.status) queryParams.append('status', filters.status);
-      if (filters.startDate) queryParams.append('startDate', filters.startDate);
-      if (filters.endDate) queryParams.append('endDate', filters.endDate);
-
-      const response = await api.get(`/reports/expenses/excel?${queryParams.toString()}`, {
+      const queryParams = buildQueryParams();
+      const response = await api.get(`/reports/expenses/excel?${queryParams}`, {
         responseType: 'blob',
       });
 
@@ -169,12 +243,35 @@ export function Reports() {
 
       {/* Filter Parameters Card */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-          <Filter className="w-4 h-4 text-brand-500" />
-          <span>Report Filter Criteria</span>
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <Filter className="w-4 h-4 text-brand-500" />
+            <span>Report Filter Criteria</span>
+          </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowMoreFilters(!showMoreFilters)}
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>{showMoreFilters ? 'Basic View' : 'All Parameters'}</span>
+            </button>
+
+            {isFiltered && (
+              <button
+                onClick={resetFilters}
+                className="text-slate-500 hover:text-slate-800 text-xs font-semibold flex items-center gap-1"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Primary Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
               Project Site
@@ -184,7 +281,7 @@ export function Reports() {
               onChange={(e) => setFilters({ ...filters, projectId: e.target.value })}
               className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">All Projects</option>
+              <option value="">All Project Sites</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   [{p.code}] {p.name}
@@ -231,32 +328,147 @@ export function Reports() {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
-              Date Interval
+              Search Keywords
             </label>
-            <div className="flex items-center gap-1.5">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
               <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                className="w-full px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
-              />
-              <span className="text-slate-400 text-xs">-</span>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                className="w-full px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                type="text"
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                placeholder="Vendor, title, invoice..."
+                className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
           </div>
         </div>
+
+        {/* Date presets row */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-slate-400 font-medium text-[11px] uppercase mr-1">Period:</span>
+            <button
+              onClick={() => applyPreset('all')}
+              className={`px-2.5 py-1 rounded-lg text-xs transition-colors ${
+                !filters.startDate && !filters.endDate ? 'bg-slate-900 text-white font-semibold' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              All Time
+            </button>
+            <button
+              onClick={() => applyPreset('month')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => applyPreset('last30')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              Last 30 Days
+            </button>
+            <button
+              onClick={() => applyPreset('quarter')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              Last 90 Days
+            </button>
+            <button
+              onClick={() => applyPreset('year')}
+              className="px-2.5 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              This Year
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500">Custom Dates:</span>
+            <input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+            />
+            <span className="text-slate-400">-</span>
+            <input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+              className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Advanced Filters Expandable Drawer */}
+        {showMoreFilters && (
+          <div className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60 p-3 rounded-2xl">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Payment Method
+              </label>
+              <select
+                value={filters.paymentMethod}
+                onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="">All Payment Modes</option>
+                <option value="cash">Cash / Petty Cash</option>
+                <option value="upi">UPI / GPay / PhonePe</option>
+                <option value="bank_transfer">Bank Transfer (NEFT/RTGS)</option>
+                <option value="cheque">Cheque</option>
+                <option value="credit_card">Company Card</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Submitted By
+              </label>
+              <select
+                value={filters.submittedBy}
+                onChange={(e) => setFilters({ ...filters, submittedBy: e.target.value })}
+                className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+              >
+                <option value="">All Personnel</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role.replace('_', ' ')})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
+                Amount Range (INR ₹)
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  placeholder="Min ₹"
+                  value={filters.minAmount}
+                  onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+                <span className="text-slate-400 text-xs">-</span>
+                <input
+                  type="number"
+                  placeholder="Max ₹"
+                  value={filters.maxAmount}
+                  onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                  className="w-full px-2 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary KPI Strip */}
       <div className="bg-slate-900 text-white p-5 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
         <div>
           <span className="text-xs font-semibold text-brand-400 uppercase tracking-wider block">
-            Report Aggregate Total
+            Filtered Report Total
           </span>
           <span className="text-2xl sm:text-3xl font-black font-mono">
             ₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -265,7 +477,7 @@ export function Reports() {
 
         <div className="flex items-center gap-6 text-xs text-slate-300">
           <div>
-            <span className="block text-slate-400 font-medium">Total Entries</span>
+            <span className="block text-slate-400 font-medium">Filtered Vouchers</span>
             <span className="text-base font-bold text-white font-mono">{expenses.length}</span>
           </div>
           <div>
@@ -308,6 +520,7 @@ export function Reports() {
                   <th className="py-2.5 px-4">Category</th>
                   <th className="py-2.5 px-4">Title / Vendor</th>
                   <th className="py-2.5 px-4 text-right">Amount (₹)</th>
+                  <th className="py-2.5 px-4">Payment</th>
                   <th className="py-2.5 px-4">Status</th>
                 </tr>
               </thead>
@@ -321,7 +534,10 @@ export function Reports() {
                       {exp.expense_date}
                     </td>
                     <td className="py-2.5 px-4 text-slate-800">
-                      [{exp.project_code}] {exp.project_name}
+                      <span className="font-mono text-[10px] text-slate-500 block">
+                        {exp.project_code}
+                      </span>
+                      {exp.project_name}
                     </td>
                     <td className="py-2.5 px-4 text-slate-600">{exp.category_name}</td>
                     <td className="py-2.5 px-4">
@@ -332,6 +548,9 @@ export function Reports() {
                     </td>
                     <td className="py-2.5 px-4 text-right font-bold text-slate-900 font-mono whitespace-nowrap">
                       ₹ {Number(exp.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-4 capitalize text-slate-600 whitespace-nowrap">
+                      {exp.payment_method?.replace('_', ' ')}
                     </td>
                     <td className="py-2.5 px-4 whitespace-nowrap">
                       <StatusBadge status={exp.status} size="xs" />

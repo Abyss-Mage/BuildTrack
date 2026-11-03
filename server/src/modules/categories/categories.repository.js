@@ -1,8 +1,23 @@
 import db from '../../config/database.js';
 
 export class CategoriesRepository {
-  static async findAll() {
-    return db.getAll('SELECT * FROM categories ORDER BY name ASC');
+  static async findAll(filters = {}) {
+    let sql = 'SELECT * FROM categories WHERE 1=1';
+    const params = [];
+
+    if (filters.is_active !== undefined && filters.is_active !== '') {
+      sql += ' AND is_active = ?';
+      params.push(Number(filters.is_active));
+    }
+
+    if (filters.search) {
+      sql += ' AND (name LIKE ? OR description LIKE ?)';
+      const term = `%${filters.search}%`;
+      params.push(term, term);
+    }
+
+    sql += ' ORDER BY name ASC';
+    return db.getAll(sql, params);
   }
 
   static async findActive() {

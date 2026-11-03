@@ -12,9 +12,13 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import Expenses from './pages/Expenses';
 import Approvals from './pages/Approvals';
+import Accounts from './pages/Accounts';
+import Payroll from './pages/Payroll';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
+import AuditLogs from './pages/AuditLogs';
 import Categories from './pages/Categories';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, token } = useAuthStore();
@@ -59,6 +63,19 @@ export function App() {
             }
           />
 
+          {/* Accounts & Payouts: Accountant, Admin, PM */}
+          <Route
+            path="/accounts"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'accountant', 'project_manager']}>
+                <Accounts />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Payroll: Accessible to all workforce (Engineers view own slips, Accountant/Admin manage) */}
+          <Route path="/payroll" element={<Payroll />} />
+
           {/* Reports: PM, Accountant, Admin */}
           <Route
             path="/reports"
@@ -79,6 +96,16 @@ export function App() {
             }
           />
 
+          {/* Full Audit Logs: Strictly Super Admin Only */}
+          <Route
+            path="/audit-logs"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AuditLogs />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Category Management: Admin only */}
           <Route
             path="/categories"
@@ -88,6 +115,9 @@ export function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Personal Settings & Password Reset: All authenticated users */}
+          <Route path="/settings" element={<Settings />} />
         </Route>
 
         {/* Fallback */}

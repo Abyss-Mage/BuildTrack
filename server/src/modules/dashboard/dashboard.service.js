@@ -1,16 +1,16 @@
 import db from '../../config/database.js';
 
 export class DashboardService {
-  static async getSummary(user) {
-    const isRestricted = user.role !== 'admin' && user.role !== 'accountant';
-    const userParams = isRestricted ? [user.id, user.id] : [];
+  static async getSummary(user, filters = {}) {
+    let params = [];
+    let projectScope = '';
 
-    // Base scoping condition
-    const projectScope = isRestricted
-      ? `AND (e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR e.submitted_by = ?)`
-      : '';
+    if (filters.projectId) {
+      projectScope += ` AND e.project_id = ?`;
+      params.push(Number(filters.projectId));
+    }
 
-    // Total spent this month (approved or processed)
+    // Timeframe conditions
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}%`;
 
@@ -20,16 +20,16 @@ export class DashboardService {
        WHERE e.status IN ('approved', 'processed')
        AND e.expense_date LIKE ?
        ${projectScope}`,
-      [currentMonth, ...userParams]
+      [currentMonth, ...params]
     );
 
-    // Total spend all time
+    // Total spend in selected scope
     const totalSpendResult = await db.getOne(
       `SELECT COALESCE(SUM(e.amount), 0) as total_all
        FROM expenses e
        WHERE e.status IN ('approved', 'processed')
        ${projectScope}`,
-      userParams
+      params
     );
 
     // Pending count
@@ -38,7 +38,7 @@ export class DashboardService {
        FROM expenses e
        WHERE e.status = 'pending'
        ${projectScope}`,
-      userParams
+      params
     );
 
     // Approved (waiting for accountant processing)
@@ -47,15 +47,15 @@ export class DashboardService {
        FROM expenses e
        WHERE e.status = 'approved'
        ${projectScope}`,
-      userParams
+      params
     );
 
     // Active projects count
     let activeProjectsSql = `SELECT COUNT(*) as active_count FROM projects WHERE status = 'active'`;
     let activeParams = [];
-    if (isRestricted) {
-      activeProjectsSql += ` AND (id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR created_by = ?)`;
-      activeParams = [user.id, user.id];
+    if (filters.projectId) {
+      activeProjectsSql += ` AND id = ?`;
+      activeParams.push(Number(filters.projectId));
     }
     const projectsResult = await db.getOne(activeProjectsSql, activeParams);
 
@@ -70,12 +70,22 @@ export class DashboardService {
     };
   }
 
-  static async getCategoryBreakdown(user) {
-    const isRestricted = user.role !== 'admin' && user.role !== 'accountant';
-    const userParams = isRestricted ? [user.id, user.id] : [];
-    const projectScope = isRestricted
-      ? `AND (e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR e.submitted_by = ?)`
-      : '';
+  static async getCategoryBreakdown(user, filters = {}) {
+    let params = [];
+    let projectScope = '';
+
+    if (filters.projectId) {
+      projectScope += ` AND e.project_id = ?`;
+      params.push(Number(filters.projectId));
+    }
+
+    if (filters.timeframe === 'month') {
+      projectScope += ` AND e.expense_date >= date('now', '-1 month')`;
+    } else if (filters.timeframe === 'quarter') {
+      projectScope += ` AND e.expense_date >= date('now', '-3 month')`;
+    } else if (filters.timeframe === 'year') {
+      projectScope += ` AND e.expense_date >= date('now', '-1 year')`;
+    }
 
     const sql = `
       SELECT 
@@ -93,7 +103,7 @@ export class DashboardService {
       ORDER BY total_amount DESC
     `;
 
-    const rows = await db.getAll(sql, userParams);
+    const rows = await db.getAll(sql, params);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -103,8 +113,7 @@ export class DashboardService {
     }));
   }
 
-  static async getProjectBreakdown(user) {
-    const isRestricted = user.role !== 'admin' && user.role !== 'accountant';
+  static async getProjectBreakdown(user, filters = {}) {
     let sql = `
       SELECT 
         p.id,
@@ -114,12 +123,14 @@ export class DashboardService {
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent
       FROM projects p
       LEFT JOIN expenses e ON p.id = e.project_id
+      WHERE 1=1
     `;
 
     const params = [];
-    if (isRestricted) {
-      sql += ` WHERE p.id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR p.created_by = ?`;
-      params.push(user.id, user.id);
+
+    if (filters.projectId) {
+      sql += ` AND p.id = ?`;
+      params.push(Number(filters.projectId));
     }
 
     sql += ` GROUP BY p.id, p.name, p.code, p.total_budget ORDER BY total_spent DESC LIMIT 10`;
@@ -135,27 +146,30 @@ export class DashboardService {
     }));
   }
 
-  static async getMonthlyTrends(user) {
-    const isRestricted = user.role !== 'admin' && user.role !== 'accountant';
-    const userParams = isRestricted ? [user.id, user.id] : [];
-    const projectScope = isRestricted
-      ? `AND (e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR e.submitted_by = ?)`
-      : '';
+  static async getMonthlyTrends(user, filters = {}) {
+    let params = [];
+    let projectScope = '';
 
-    // Last 6 months spend trend
+    if (filters.projectId) {
+      projectScope += ` AND e.project_id = ?`;
+      params.push(Number(filters.projectId));
+    }
+
+    const interval = filters.timeframe === 'year' ? '-12 month' : filters.timeframe === 'quarter' ? '-3 month' : '-6 month';
+
     const sql = `
       SELECT 
         SUBSTR(e.expense_date, 1, 7) as month,
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as approved_amount,
         COALESCE(SUM(CASE WHEN e.status = 'pending' THEN e.amount ELSE 0 END), 0) as pending_amount
       FROM expenses e
-      WHERE e.expense_date >= date('now', '-6 month')
+      WHERE e.expense_date >= date('now', '${interval}')
       ${projectScope}
       GROUP BY SUBSTR(e.expense_date, 1, 7)
       ORDER BY month ASC
     `;
 
-    const rows = await db.getAll(sql, userParams);
+    const rows = await db.getAll(sql, params);
     return rows.map((r) => ({
       month: r.month,
       approved: Number(r.approved_amount),
@@ -163,12 +177,14 @@ export class DashboardService {
     }));
   }
 
-  static async getRecentExpenses(user) {
-    const isRestricted = user.role !== 'admin' && user.role !== 'accountant';
-    const userParams = isRestricted ? [user.id, user.id] : [];
-    const projectScope = isRestricted
-      ? `AND (e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR e.submitted_by = ?)`
-      : '';
+  static async getRecentExpenses(user, filters = {}) {
+    let params = [];
+    let projectScope = '';
+
+    if (filters.projectId) {
+      projectScope += ` AND e.project_id = ?`;
+      params.push(Number(filters.projectId));
+    }
 
     const sql = `
       SELECT 
@@ -181,17 +197,20 @@ export class DashboardService {
         p.name as project_name,
         c.name as category_name,
         c.icon as category_icon,
-        u.name as submitter_name
+        u.name as submitter_name,
+        app.name as approver_name,
+        app.role as approver_role
       FROM expenses e
       JOIN projects p ON e.project_id = p.id
       JOIN categories c ON e.category_id = c.id
       JOIN users u ON e.submitted_by = u.id
+      LEFT JOIN users app ON e.approved_by = app.id
       WHERE 1=1
       ${projectScope}
       ORDER BY e.created_at DESC
-      LIMIT 6
+      LIMIT 8
     `;
 
-    return db.getAll(sql, userParams);
+    return db.getAll(sql, params);
   }
 }

@@ -3,8 +3,8 @@ import { UsersRepository } from './users.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 
 export class UsersService {
-  static async getAllUsers() {
-    return UsersRepository.findAll();
+  static async getAllUsers(filters = {}) {
+    return UsersRepository.findAll(filters);
   }
 
   static async getUserById(id) {

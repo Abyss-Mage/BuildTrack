@@ -3,19 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
-import StatusBadge from '../components/ui/StatusBadge';
 import Modal from '../components/ui/Modal';
 import {
   Building2,
-  MapPin,
-  Calendar,
-  Users,
   PlusCircle,
-  FileSpreadsheet,
-  Edit2,
-  Loader2,
-  ArrowRight,
+  Search,
+  Filter,
+  DollarSign,
+  Calendar,
+  MapPin,
   TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  Users as UsersIcon,
+  RotateCcw,
+  Shield,
+  Layers,
+  ArrowUpDown,
+  Loader2,
+  Edit2,
+  ArrowUpRight,
 } from 'lucide-react';
 
 export function Projects() {
@@ -24,8 +31,15 @@ export function Projects() {
   const { showNotification } = useUiStore();
 
   const [projects, setProjects] = useState([]);
-  const [usersList, setUsersList] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Multi-criteria filter state
+  const [filters, setFilters] = useState({
+    search: '',
+    status: '',
+    utilization: '',
+    sortBy: 'newest',
+  });
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,7 +55,12 @@ export function Projects() {
     start_date: '',
     end_date: '',
     status: 'active',
-    members: [],
+  });
+
+  // Per Role Expenditure Approval Allocation
+  const [roleLimits, setRoleLimits] = useState({
+    pm_limit: '50000',
+    accountant_limit: '200000',
   });
 
   const canManageProjects = ['admin', 'project_manager'].includes(user?.role);
@@ -49,7 +68,13 @@ export function Projects() {
   const loadProjects = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/projects');
+      const params = {};
+      if (filters.search) params.search = filters.search;
+      if (filters.status) params.status = filters.status;
+      if (filters.utilization) params.utilization = filters.utilization;
+      if (filters.sortBy) params.sortBy = filters.sortBy;
+
+      const res = await api.get('/projects', { params });
       setProjects(res.data.data || []);
     } catch (err) {
       showNotification(err.response?.data?.message || 'Failed to load projects', 'error');
@@ -58,21 +83,25 @@ export function Projects() {
     }
   };
 
-  const loadUsers = async () => {
-    try {
-      const res = await api.get('/users');
-      setUsersList(res.data.data || []);
-    } catch (err) {
-      console.error(err);
-    }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadProjects();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  const resetFilters = () => {
+    setFilters({
+      search: '',
+      status: '',
+      utilization: '',
+      sortBy: 'newest',
+    });
   };
 
-  useEffect(() => {
-    loadProjects();
-    if (canManageProjects) {
-      loadUsers();
-    }
-  }, []);
+  const hasActiveFilters = Boolean(
+    filters.search || filters.status || filters.utilization || filters.sortBy !== 'newest'
+  );
 
   const openCreateModal = () => {
     setEditingProject(null);
@@ -85,7 +114,10 @@ export function Projects() {
       start_date: '',
       end_date: '',
       status: 'active',
-      members: [],
+    });
+    setRoleLimits({
+      pm_limit: '50000',
+      accountant_limit: '200000',
     });
     setIsModalOpen(true);
   };
@@ -105,11 +137,20 @@ export function Projects() {
         start_date: full.start_date || '',
         end_date: full.end_date || '',
         status: full.status,
-        members: full.members?.map((m) => ({
-          user_id: m.user_id,
-          role_in_project: m.role_in_project,
-        })) || [],
       });
+
+      // Populate role limits
+      const pmLimitObj = full.role_limits?.find((r) => r.role === 'project_manager');
+      const accLimitObj = full.role_limits?.find((r) => r.role === 'accountant');
+      setRoleLimits({
+        pm_limit: pmLimitObj?.max_amount_per_expense !== null && pmLimitObj?.max_amount_per_expense !== undefined
+          ? String(pmLimitObj.max_amount_per_expense)
+          : '50000',
+        accountant_limit: accLimitObj?.max_amount_per_expense !== null && accLimitObj?.max_amount_per_expense !== undefined
+          ? String(accLimitObj.max_amount_per_expense)
+          : '200000',
+      });
+
       setIsModalOpen(true);
     } catch (err) {
       showNotification('Failed to load project details', 'error');
@@ -120,12 +161,38 @@ export function Projects() {
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const payload = {
+        ...formData,
+        role_limits: [
+          {
+            role: 'project_manager',
+            can_approve: 1,
+            max_amount_per_expense: roleLimits.pm_limit ? Number(roleLimits.pm_limit) : null,
+          },
+          {
+            role: 'accountant',
+            can_approve: 1,
+            max_amount_per_expense: roleLimits.accountant_limit ? Number(roleLimits.accountant_limit) : null,
+          },
+          {
+            role: 'admin',
+            can_approve: 1,
+            max_amount_per_expense: null,
+          },
+          {
+            role: 'site_engineer',
+            can_approve: 0,
+            max_amount_per_expense: 0,
+          },
+        ],
+      };
+
       if (editingProject) {
-        await api.put(`/projects/${editingProject.id}`, formData);
-        showNotification('Project updated successfully');
+        await api.put(`/projects/${editingProject.id}`, payload);
+        showNotification('Project and role approval limits updated successfully');
       } else {
-        await api.post('/projects', formData);
-        showNotification('New project created successfully');
+        await api.post('/projects', payload);
+        showNotification('New project created with role approval limits');
       }
       setIsModalOpen(false);
       loadProjects();
@@ -136,27 +203,21 @@ export function Projects() {
     }
   };
 
-  const toggleMemberSelection = (userId, defaultRole = 'engineer') => {
-    setFormData((prev) => {
-      const exists = prev.members.find((m) => m.user_id === userId);
-      if (exists) {
-        return { ...prev, members: prev.members.filter((m) => m.user_id !== userId) };
-      } else {
-        return { ...prev, members: [...prev.members, { user_id: userId, role_in_project: defaultRole }] };
-      }
-    });
-  };
+  // Aggregated totals of filtered projects
+  const totalFilteredBudget = projects.reduce((acc, curr) => acc + Number(curr.total_budget || 0), 0);
+  const totalFilteredSpent = projects.reduce((acc, curr) => acc + Number(curr.total_spent || 0), 0);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Construction Projects & Sites
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Building2 className="w-6 h-6 text-brand-500" />
+            <span>Construction Project Sites</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Manage site budgets, active workforce allocations, and real-time expense drawdowns.
+            Company-wide visibility for all sites with per-role expenditure approval allocations.
           </p>
         </div>
 
@@ -166,59 +227,162 @@ export function Projects() {
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all self-start sm:self-auto"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>Add New Site</span>
+            <span>Create New Project</span>
           </button>
         )}
+      </div>
+
+      {/* Filter Toolbar */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              placeholder="Search by name, site code, location..."
+              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <select
+              value={filters.status}
+              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">All Statuses</option>
+              <option value="active">Active Execution</option>
+              <option value="on_hold">On Hold</option>
+              <option value="completed">Completed / Handed Over</option>
+            </select>
+          </div>
+
+          {/* Budget Health / Utilization Filter */}
+          <div>
+            <select
+              value={filters.utilization}
+              onChange={(e) => setFilters({ ...filters, utilization: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">All Budget Health</option>
+              <option value="under">Within Budget (&lt; 80%)</option>
+              <option value="warning">Budget Warning (80% - 100%)</option>
+              <option value="over">Budget Overrun (&gt; 100%)</option>
+            </select>
+          </div>
+
+          {/* Sort By */}
+          <div>
+            <select
+              value={filters.sortBy}
+              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="newest">Recently Added</option>
+              <option value="oldest">Oldest First</option>
+              <option value="budget_desc">Budget: Highest First</option>
+              <option value="budget_asc">Budget: Lowest First</option>
+              <option value="spent_desc">Spend: Highest First</option>
+              <option value="name_asc">Alphabetical (A - Z)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Aggregate Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div className="flex items-center gap-4">
+            <span>
+              Showing <strong className="text-slate-900">{projects.length}</strong> Sites
+            </span>
+            <span>•</span>
+            <span>
+              Total Budget: <strong className="text-slate-900">₹ {totalFilteredBudget.toLocaleString('en-IN')}</strong>
+            </span>
+            <span>•</span>
+            <span>
+              Total Spent: <strong className="text-emerald-700">₹ {totalFilteredSpent.toLocaleString('en-IN')}</strong>
+            </span>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Projects Grid */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
-          <p className="text-sm">Loading construction projects...</p>
+          <p className="text-sm">Loading construction sites...</p>
         </div>
       ) : projects.length === 0 ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center">
+        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80">
           <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="text-base font-semibold text-slate-800">No Projects Found</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-            You don't have access to any projects yet or none have been created.
+            {hasActiveFilters
+              ? 'Try clearing your filters to see more results.'
+              : 'Get started by creating your first construction project site.'}
           </p>
-          {canManageProjects && (
+          {hasActiveFilters && (
             <button
-              onClick={openCreateModal}
-              className="mt-4 px-4 py-2 rounded-xl bg-brand-500 text-slate-950 font-bold text-xs"
+              onClick={resetFilters}
+              className="mt-4 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold"
             >
-              Create First Project
+              Clear Filters
             </button>
           )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.map((proj) => {
-            const budget = Number(proj.total_budget || 0);
-            const spent = Number(proj.total_spent || 0);
-            const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-            const isOver = spent > budget;
+          {projects.map((p) => {
+            const spent = Number(p.total_spent || 0);
+            const budget = Number(p.total_budget || 0);
+            const utilization = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+            const isOverBudget = utilization > 100;
+            const isWarning = utilization >= 80 && utilization <= 100;
 
             return (
               <div
-                key={proj.id}
-                onClick={() => navigate(`/projects/${proj.id}`)}
-                className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm hover:shadow-xl hover:border-brand-500/40 transition-all cursor-pointer flex flex-col justify-between group"
+                key={p.id}
+                onClick={() => navigate(`/projects/${p.id}`)}
+                className="bg-white rounded-3xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-brand-500/40 transition-all cursor-pointer overflow-hidden flex flex-col justify-between"
               >
-                <div>
+                <div className="p-5">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-[11px] font-mono font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg">
-                      {proj.code}
+                    <span className="text-[10px] font-bold font-mono tracking-wider px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                      {p.code}
                     </span>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge status={proj.status} size="xs" />
+
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
+                          p.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : p.status === 'on_hold'
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {p.status.replace('_', ' ')}
+                      </span>
+
                       {canManageProjects && (
                         <button
-                          onClick={(e) => openEditModal(proj, e)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                          title="Edit project"
+                          onClick={(e) => openEditModal(p, e)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                          title="Edit Project & Approval Limits"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -226,60 +390,71 @@ export function Projects() {
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 mt-3 group-hover:text-brand-600 transition-colors line-clamp-1">
-                    {proj.name}
-                  </h3>
+                  <h3 className="text-base font-bold text-slate-900 mt-2 line-clamp-1">{p.name}</h3>
 
-                  <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-1 truncate">
                     <MapPin className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                    <span className="truncate">{proj.location}</span>
-                  </div>
+                    <span>{p.location}</span>
+                  </p>
 
-                  {proj.description && (
-                    <p className="text-xs text-slate-600 mt-2 line-clamp-2">
-                      {proj.description}
-                    </p>
-                  )}
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-slate-100">
-                  {/* Budget Utilization Progress Bar */}
-                  <div className="space-y-1.5 mb-4">
-                    <div className="flex items-center justify-between text-xs font-medium">
-                      <span className="text-slate-500">Budget Spent</span>
-                      <span className={`font-bold font-mono ${isOver ? 'text-rose-600' : 'text-slate-900'}`}>
-                        {pct}% ({`₹ ${spent.toLocaleString('en-IN')}`})
+                  {/* Budget & Utilization */}
+                  <div className="mt-4 p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-slate-500 font-medium">Spent:</span>
+                      <span className="font-bold text-slate-900 font-mono">
+                        ₹ {spent.toLocaleString('en-IN')}
                       </span>
                     </div>
 
-                    <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-slate-500 font-medium">Budget:</span>
+                      <span className="font-bold text-slate-700 font-mono">
+                        ₹ {budget.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          isOver
+                          isOverBudget
                             ? 'bg-rose-500'
-                            : pct > 80
+                            : isWarning
                             ? 'bg-amber-500'
                             : 'bg-emerald-500'
                         }`}
-                        style={{ width: `${Math.min(pct, 100)}%` }}
+                        style={{ width: `${Math.min(utilization, 100)}%` }}
                       />
                     </div>
 
-                    <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                      <span>Spent: ₹ {spent.toLocaleString('en-IN')}</span>
-                      <span>Total: ₹ {budget.toLocaleString('en-IN')}</span>
+                    <div className="flex justify-between items-center text-[10px] font-semibold">
+                      <span
+                        className={
+                          isOverBudget
+                            ? 'text-rose-600 font-bold'
+                            : isWarning
+                            ? 'text-amber-600 font-bold'
+                            : 'text-emerald-700 font-medium'
+                        }
+                      >
+                        {utilization}% Utilized
+                      </span>
+                      <span className="text-slate-400 font-normal">
+                        {p.expense_count || 0} Vouchers Recorded
+                      </span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span className="font-medium">
-                      {proj.expense_count || 0} Vouchers Recorded
-                    </span>
-                    <span className="text-brand-600 font-bold group-hover:translate-x-1 transition-transform flex items-center gap-1">
-                      <span>Site P&L</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
+                <div className="px-5 py-3 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span className="flex items-center gap-1 text-[11px]">
+                    <Shield className="w-3 h-3 text-brand-600" />
+                    <span>Role Caps Configured</span>
+                  </span>
+                  <span className="text-brand-600 font-bold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                    <span>Ledger</span>
+                    <ArrowUpRight className="w-3 h-3" />
+                  </span>
                 </div>
               </div>
             );
@@ -287,25 +462,25 @@ export function Projects() {
         </div>
       )}
 
-      {/* Project Create/Edit Modal */}
+      {/* Create / Edit Project Modal */}
       {isModalOpen && (
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title={editingProject ? 'Update Construction Project' : 'Register New Construction Project'}
-          maxWidth="max-w-2xl"
+          title={editingProject ? 'Edit Construction Site' : 'Create New Construction Site'}
+          maxWidth="max-w-xl"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Project Name *
+                  Site / Project Name *
                 </label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Commercial Complex - Phase 1"
+                  placeholder="e.g. Skyline Residency Phase 2"
                   required
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
@@ -313,20 +488,20 @@ export function Projects() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Project Code *
+                  Site Code *
                 </label>
                 <input
                   type="text"
                   value={formData.code}
                   onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="e.g. PRJ-SKY-01"
+                  placeholder="e.g. SRP-02"
                   required
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none uppercase font-mono"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                   Site Location *
@@ -335,7 +510,7 @@ export function Projects() {
                   type="text"
                   value={formData.location}
                   onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="e.g. Sector 62, Noida, UP"
+                  placeholder="e.g. Sector 62, Noida"
                   required
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
@@ -343,22 +518,21 @@ export function Projects() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Total Allocated Budget (INR ₹) *
+                  Allocated Total Budget (₹) *
                 </label>
                 <input
                   type="number"
-                  step="1"
-                  min="0"
+                  step="0.01"
                   value={formData.total_budget}
                   onChange={(e) => setFormData({ ...formData, total_budget: e.target.value })}
-                  placeholder="e.g. 25000000"
+                  placeholder="e.g. 5000000"
                   required
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none font-semibold font-mono"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                   Start Date
@@ -385,23 +559,23 @@ export function Projects() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Project Status
+                  Status
                 </label>
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
                 >
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
+                  <option value="active">Active Execution</option>
                   <option value="on_hold">On Hold</option>
+                  <option value="completed">Completed</option>
                 </select>
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Project Scope & Description
+                Site Description / Scope Notes
               </label>
               <textarea
                 rows="2"
@@ -412,37 +586,55 @@ export function Projects() {
               />
             </div>
 
-            {/* Member Allocation */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Assign Site Team (Project Managers & Engineers)
-              </label>
-              <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2 space-y-1 bg-slate-50/50">
-                {usersList.map((u) => {
-                  const isAssigned = formData.members.some((m) => m.user_id === u.id);
-                  return (
-                    <div
-                      key={u.id}
-                      onClick={() => toggleMemberSelection(u.id, u.role === 'project_manager' ? 'manager' : 'engineer')}
-                      className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-colors ${
-                        isAssigned
-                          ? 'bg-brand-50 border border-brand-200 text-slate-900 font-medium'
-                          : 'hover:bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={isAssigned}
-                          readOnly
-                          className="rounded text-brand-500 focus:ring-brand-500"
-                        />
-                        <span>{u.name}</span>
-                        <span className="text-[10px] text-slate-400 capitalize">({u.role.replace('_', ' ')})</span>
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Requirement 2: Per Role Expenditure Approval Allocation */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-brand-600" />
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Per-Role Expenditure Approval Allocation
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Configure maximum expenditure approval thresholds for each role on this project site:
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Project Manager Approval Limit (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={roleLimits.pm_limit}
+                    onChange={(e) => setRoleLimits({ ...roleLimits, pm_limit: e.target.value })}
+                    placeholder="e.g. 50000"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Vouchers above this amount require Super Admin authorization.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Accountant Payout Limit (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={roleLimits.accountant_limit}
+                    onChange={(e) => setRoleLimits({ ...roleLimits, accountant_limit: e.target.value })}
+                    placeholder="e.g. 200000"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Single payout disbursement threshold for finance.
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px] text-slate-500">
+                <span>Super Admin: <strong>Unlimited</strong></span>
+                <span>Site Engineer: <strong>Submission Only</strong></span>
               </div>
             </div>
 
@@ -450,17 +642,17 @@ export function Projects() {
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-xl"
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md disabled:opacity-50"
               >
-                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>{editingProject ? 'Save Changes' : 'Create Project'}</span>
+                {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{editingProject ? 'Update Site & Allocations' : 'Create Site'}</span>
               </button>
             </div>
           </form>

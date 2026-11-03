@@ -10,7 +10,7 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
   });
 
   // Title Row
-  worksheet.mergeCells('A1:H1');
+  worksheet.mergeCells('A1:L1');
   const titleCell = worksheet.getCell('A1');
   titleCell.value = 'CONSTRUCTION EXPENSE REPORT';
   titleCell.font = { name: 'Arial', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -42,6 +42,8 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
     'Vendor',
     'Payment Method',
     'Status',
+    'Approved By',
+    'Disbursed By / UTR',
     'Amount (INR)',
   ];
 
@@ -62,6 +64,13 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
 
   expenses.forEach((item) => {
     const row = worksheet.getRow(rowIdx);
+    const approvedInfo = item.approver_name
+      ? `${item.approver_name} (${item.approver_role || 'Approver'})`
+      : '-';
+    const disbursedInfo = item.processor_name
+      ? `${item.processor_name} ${item.payment_reference ? `[UTR: ${item.payment_reference}]` : ''}`
+      : item.payment_reference ? `[Ref: ${item.payment_reference}]` : '-';
+
     row.values = [
       item.reference_no,
       item.expense_date,
@@ -72,11 +81,13 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
       item.vendor_name || '-',
       (item.payment_method || '').toUpperCase(),
       (item.status || '').toUpperCase(),
+      approvedInfo,
+      disbursedInfo,
       Number(item.amount),
     ];
 
     // Format currency cell
-    const amountCell = row.getCell(10);
+    const amountCell = row.getCell(12);
     amountCell.numFmt = '₹ #,##0.00';
     amountCell.alignment = { horizontal: 'right' };
 
@@ -86,11 +97,11 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
 
   // Summary Row
   const totalRow = worksheet.getRow(rowIdx + 1);
-  totalRow.getCell(9).value = 'TOTAL:';
-  totalRow.getCell(9).font = { name: 'Arial', size: 11, bold: true };
-  totalRow.getCell(9).alignment = { horizontal: 'right' };
+  totalRow.getCell(11).value = 'TOTAL:';
+  totalRow.getCell(11).font = { name: 'Arial', size: 11, bold: true };
+  totalRow.getCell(11).alignment = { horizontal: 'right' };
 
-  const totalAmountCell = totalRow.getCell(10);
+  const totalAmountCell = totalRow.getCell(12);
   totalAmountCell.value = totalAmount;
   totalAmountCell.numFmt = '₹ #,##0.00';
   totalAmountCell.font = { name: 'Arial', size: 11, bold: true };
@@ -112,6 +123,8 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
     { width: 22 }, // Vendor
     { width: 18 }, // Payment Method
     { width: 14 }, // Status
+    { width: 25 }, // Approved By
+    { width: 25 }, // Disbursed By / UTR
     { width: 20 }, // Amount
   ];
 

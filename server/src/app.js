@@ -19,6 +19,9 @@ import approvalsRoutes from './modules/approvals/approvals.routes.js';
 import categoriesRoutes from './modules/categories/categories.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import reportsRoutes from './modules/reports/reports.routes.js';
+import accountsRoutes from './modules/accounts/accounts.routes.js';
+import auditRoutes from './modules/audit/audit.routes.js';
+import payrollRoutes from './modules/payroll/payroll.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -95,6 +98,9 @@ app.use('/api/approvals', approvalsRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/accounts', accountsRoutes);
+app.use('/api/audit-logs', auditRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // In production, serve the built React client
 const clientDist = path.resolve(__dirname, '../../client/dist');

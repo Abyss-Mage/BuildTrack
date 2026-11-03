@@ -1,10 +1,38 @@
 import db from '../../config/database.js';
 
 export class UsersRepository {
-  static async findAll() {
-    return db.getAll(
-      'SELECT id, name, email, role, phone, is_active, created_at, updated_at FROM users ORDER BY id DESC'
-    );
+  static async findAll(filters = {}) {
+    let sql = 'SELECT id, name, email, role, phone, is_active, created_at, updated_at FROM users WHERE 1=1';
+    const params = [];
+
+    if (filters.role) {
+      sql += ' AND role = ?';
+      params.push(filters.role);
+    }
+
+    if (filters.is_active !== undefined && filters.is_active !== '') {
+      sql += ' AND is_active = ?';
+      params.push(Number(filters.is_active));
+    }
+
+    if (filters.search) {
+      sql += ' AND (name LIKE ? OR email LIKE ? OR phone LIKE ?)';
+      const term = `%${filters.search}%`;
+      params.push(term, term, term);
+    }
+
+    const sortMap = {
+      name_asc: 'name ASC',
+      name_desc: 'name DESC',
+      role: 'role ASC, name ASC',
+      oldest: 'id ASC',
+      newest: 'id DESC',
+    };
+
+    const sortClause = sortMap[filters.sortBy] || 'id DESC';
+    sql += ` ORDER BY ${sortClause}`;
+
+    return db.getAll(sql, params);
   }
 
   static async findById(id) {

@@ -56,4 +56,23 @@ export class AuthService {
     await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [newHash, userId]);
     return { success: true, message: 'Password changed successfully' };
   }
+
+  static async updateProfile(userId, { name, phone }) {
+    const fields = [];
+    const values = [];
+    if (name) {
+      fields.push('name = ?');
+      values.push(name.trim());
+    }
+    if (phone !== undefined) {
+      fields.push('phone = ?');
+      values.push(phone ? phone.trim() : null);
+    }
+    if (fields.length === 0) {
+      return db.getOne('SELECT id, name, email, role, phone, is_active FROM users WHERE id = ?', [userId]);
+    }
+    values.push(userId);
+    await db.execute(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, values);
+    return db.getOne('SELECT id, name, email, role, phone, is_active FROM users WHERE id = ?', [userId]);
+  }
 }

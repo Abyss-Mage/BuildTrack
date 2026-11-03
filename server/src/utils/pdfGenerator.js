@@ -37,11 +37,11 @@ export function generateExpensePdfReport(expenses, metadata = {}) {
       doc.rect(40, tableTop, 515, 22).fill('#0f172a');
       doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
       doc.text('Ref No', 45, tableTop + 6, { width: 75 });
-      doc.text('Date', 125, tableTop + 6, { width: 65 });
-      doc.text('Project', 195, tableTop + 6, { width: 100 });
-      doc.text('Category', 300, tableTop + 6, { width: 90 });
-      doc.text('Vendor', 395, tableTop + 6, { width: 85 });
-      doc.text('Amount (INR)', 480, tableTop + 6, { width: 70, align: 'right' });
+      doc.text('Date', 125, tableTop + 6, { width: 60 });
+      doc.text('Project', 190, tableTop + 6, { width: 95 });
+      doc.text('Category', 290, tableTop + 6, { width: 90 });
+      doc.text('Approved By', 385, tableTop + 6, { width: 85 });
+      doc.text('Amount (INR)', 475, tableTop + 6, { width: 75, align: 'right' });
 
       doc.font('Helvetica');
       let currentY = tableTop + 24;
@@ -59,18 +59,24 @@ export function generateExpensePdfReport(expenses, metadata = {}) {
           doc.rect(40, currentY, 515, 20).fill('#f1f5f9');
         }
 
+        const approverDisplay = item.approver_name
+          ? item.approver_name
+          : item.status === 'pending'
+          ? 'Pending'
+          : '-';
+
         doc.fillColor('#1e293b').fontSize(8);
         doc.text(item.reference_no, 45, currentY + 5, { width: 75 });
-        doc.text(item.expense_date, 125, currentY + 5, { width: 65 });
-        doc.text(item.project_name || '-', 195, currentY + 5, { width: 95, ellipsis: true });
-        doc.text(item.category_name || '-', 300, currentY + 5, { width: 85, ellipsis: true });
-        doc.text(item.vendor_name || '-', 395, currentY + 5, { width: 80, ellipsis: true });
+        doc.text(item.expense_date, 125, currentY + 5, { width: 60 });
+        doc.text(item.project_name || '-', 190, currentY + 5, { width: 90, ellipsis: true });
+        doc.text(item.category_name || '-', 290, currentY + 5, { width: 85, ellipsis: true });
+        doc.text(approverDisplay, 385, currentY + 5, { width: 85, ellipsis: true });
 
         const formattedAmt = Number(item.amount).toLocaleString('en-IN', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
-        doc.text(`₹ ${formattedAmt}`, 480, currentY + 5, { width: 70, align: 'right' });
+        doc.text(`₹ ${formattedAmt}`, 475, currentY + 5, { width: 75, align: 'right' });
 
         totalAmount += Number(item.amount);
         currentY += 20;
@@ -103,73 +109,70 @@ export function generateProjectPlPdf(project, breakdown = []) {
       const doc = new PDFDocument({ margin: 40, size: 'A4' });
       const buffers = [];
 
-      doc.on('data', (d) => buffers.push(d));
+      doc.on('data', (data) => buffers.push(data));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
 
-      doc.fillColor('#0f172a').fontSize(22).font('Helvetica-Bold').text('PROJECT P&L STATEMENT');
-      doc.fontSize(10).font('Helvetica').fillColor('#64748b').text('Construction Financial Budget vs Actuals Analysis');
+      doc.fillColor('#1e293b').fontSize(20).text('PROJECT P&L & BUDGET AUDIT', { align: 'left' });
+      doc.fontSize(10).fillColor('#64748b').text(`Project: ${project.name} (${project.code})`, { align: 'left' });
       doc.moveDown(1);
 
-      // Project Overview Box
-      doc.rect(40, doc.y, 515, 65).fill('#f8fafc');
-      const boxY = doc.y + 10;
-      doc.fillColor('#1e293b').fontSize(12).font('Helvetica-Bold');
-      doc.text(project.name, 50, boxY);
-      doc.fontSize(9).font('Helvetica').fillColor('#64748b');
-      doc.text(`Code: ${project.code} | Location: ${project.location} | Status: ${project.status.toUpperCase()}`, 50, boxY + 16);
-      doc.text(`Timeline: ${project.start_date || 'N/A'} to ${project.end_date || 'N/A'}`, 50, boxY + 30);
-      doc.text(`Allocated Budget: ₹ ${Number(project.total_budget).toLocaleString('en-IN')}`, 320, boxY + 16);
-      doc.text(`Total Spent: ₹ ${Number(project.total_spent).toLocaleString('en-IN')}`, 320, boxY + 30);
+      // Metric Summary Cards
+      const spent = Number(project.total_spent || 0);
+      const budget = Number(project.total_budget || 0);
+      const remaining = budget - spent;
+      const utilization = budget > 0 ? Math.round((spent / budget) * 100) : 0;
 
-      doc.y = boxY + 65;
-      doc.moveDown(1);
+      doc.rect(40, doc.y, 515, 60).fill('#f8fafc');
+      const cardY = doc.y + 12;
 
-      // Category breakdown table
-      const tableTop = doc.y;
-      doc.rect(40, tableTop, 515, 22).fill('#1e293b');
-      doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
-      doc.text('Expense Category', 50, tableTop + 6, { width: 220 });
-      doc.text('Entries', 280, tableTop + 6, { width: 60, align: 'center' });
-      doc.text('Actual Spent (INR)', 360, tableTop + 6, { width: 100, align: 'right' });
-      doc.text('% of Budget', 470, tableTop + 6, { width: 75, align: 'right' });
+      doc.fillColor('#64748b').fontSize(8);
+      doc.text('TOTAL ALLOCATED BUDGET', 55, cardY);
+      doc.text('TOTAL APPROVED EXPENDITURE', 205, cardY);
+      doc.text('REMAINING BUDGET BALANCE', 375, cardY);
+
+      doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold');
+      doc.text(`₹ ${budget.toLocaleString('en-IN')}`, 55, cardY + 16);
+      doc.text(`₹ ${spent.toLocaleString('en-IN')} (${utilization}%)`, 205, cardY + 16);
+      doc.fillColor(remaining < 0 ? '#ef4444' : '#10b981');
+      doc.text(`₹ ${remaining.toLocaleString('en-IN')}`, 375, cardY + 16);
 
       doc.font('Helvetica');
-      let currentY = tableTop + 24;
-      const budget = Number(project.total_budget);
+      doc.y = cardY + 60;
+      doc.moveDown(1);
 
-      breakdown.forEach((cat, index) => {
-        if (currentY > 740) {
+      // Category breakdown section
+      doc.fillColor('#0f172a').fontSize(12).font('Helvetica-Bold').text('Category-wise Expenditure Breakdown');
+      doc.moveDown(0.5);
+
+      const tableTop = doc.y;
+      doc.rect(40, tableTop, 515, 20).fill('#0f172a');
+      doc.fillColor('#ffffff').fontSize(9).font('Helvetica-Bold');
+      doc.text('Category', 50, tableTop + 5, { width: 220 });
+      doc.text('Vouchers Count', 280, tableTop + 5, { width: 100, align: 'center' });
+      doc.text('Total Spent (INR)', 400, tableTop + 5, { width: 145, align: 'right' });
+
+      doc.font('Helvetica');
+      let curY = tableTop + 22;
+
+      breakdown.forEach((item, idx) => {
+        if (curY > 740) {
           doc.addPage();
-          currentY = 40;
+          curY = 40;
         }
 
-        if (index % 2 === 0) {
-          doc.rect(40, currentY, 515, 20).fill('#f8fafc');
+        if (idx % 2 === 0) {
+          doc.rect(40, curY, 515, 20).fill('#f1f5f9');
         }
 
-        const pct = budget > 0 ? ((cat.total_spent / budget) * 100).toFixed(1) : '0';
-        doc.fillColor('#1e293b').fontSize(8);
-        doc.text(cat.category_name, 50, currentY + 5, { width: 220 });
-        doc.text(String(cat.expense_count), 280, currentY + 5, { width: 60, align: 'center' });
-        doc.text(`₹ ${Number(cat.total_spent).toLocaleString('en-IN')}`, 360, currentY + 5, { width: 100, align: 'right' });
-        doc.text(`${pct}%`, 470, currentY + 5, { width: 75, align: 'right' });
-
-        currentY += 20;
+        doc.fillColor('#1e293b').fontSize(8.5);
+        doc.text(item.category_name, 50, curY + 5, { width: 220 });
+        doc.text(String(item.expense_count), 280, curY + 5, { width: 100, align: 'center' });
+        doc.text(`₹ ${Number(item.total_spent).toLocaleString('en-IN')}`, 400, curY + 5, {
+          width: 145,
+          align: 'right',
+        });
+        curY += 20;
       });
-
-      // Variance summary
-      const variance = budget - Number(project.total_spent);
-      const isOverBudget = variance < 0;
-
-      doc.rect(40, currentY + 10, 515, 40).fill(isOverBudget ? '#fef2f2' : '#f0fdf4');
-      doc.fillColor(isOverBudget ? '#b91c1c' : '#15803d').font('Helvetica-Bold').fontSize(11);
-      doc.text(
-        isOverBudget
-          ? `BUDGET OVERRUN: -₹ ${Math.abs(variance).toLocaleString('en-IN')}`
-          : `REMAINING BUDGET AVAILABLE: ₹ ${variance.toLocaleString('en-IN')}`,
-        50,
-        currentY + 22
-      );
 
       doc.end();
     } catch (err) {

@@ -2,8 +2,8 @@ import { ProjectsRepository } from './projects.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 
 export class ProjectsService {
-  static async getAllProjects(user) {
-    return ProjectsRepository.findAll(user);
+  static async getAllProjects(user, filters = {}) {
+    return ProjectsRepository.findAll(user, filters);
   }
 
   static async getProjectById(id) {
@@ -31,5 +31,11 @@ export class ProjectsService {
     }
 
     return ProjectsRepository.update(id, data);
+  }
+
+  static async updateRoleLimits(id, roleLimits) {
+    await this.getProjectById(id);
+    await ProjectsRepository.setRoleLimits(id, roleLimits);
+    return this.getProjectById(id);
   }
 }

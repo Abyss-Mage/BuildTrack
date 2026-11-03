@@ -13,6 +13,7 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   body: z.object({
     name: z.string().min(2).optional(),
+    email: z.string().email('Invalid email address').optional(),
     role: z.enum(['admin', 'project_manager', 'site_engineer', 'accountant']).optional(),
     phone: z.string().optional(),
     is_active: z.number().int().min(0).max(1).optional(),

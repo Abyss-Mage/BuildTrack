@@ -36,26 +36,22 @@ export class ExpensesRepository {
         c.icon as category_icon,
         u.name as submitter_name,
         u.email as submitter_email,
+        app.name as approver_name,
+        app.role as approver_role,
+        proc.name as processor_name,
         (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) as receipt_count
       FROM expenses e
       JOIN projects p ON e.project_id = p.id
       JOIN categories c ON e.category_id = c.id
       JOIN users u ON e.submitted_by = u.id
+      LEFT JOIN users app ON e.approved_by = app.id
+      LEFT JOIN users proc ON e.processed_by = proc.id
       WHERE 1=1
     `;
 
     const params = [];
 
-    // Role-based visibility scoping
-    if (user && user.role !== 'admin' && user.role !== 'accountant') {
-      if (user.role === 'site_engineer') {
-        sql += ` AND (e.submitted_by = ? OR e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?))`;
-        params.push(user.id, user.id);
-      } else if (user.role === 'project_manager') {
-        sql += ` AND (e.project_id IN (SELECT project_id FROM project_members WHERE user_id = ?) OR p.created_by = ? OR e.submitted_by = ?)`;
-        params.push(user.id, user.id, user.id);
-      }
-    }
+    // Note: Project member allocation removed. Everyone can see every project.
 
     // Filters
     if (filters.projectId) {
@@ -73,9 +69,19 @@ export class ExpensesRepository {
       params.push(filters.status);
     }
 
+    if (filters.paymentMethod) {
+      sql += ' AND e.payment_method = ?';
+      params.push(filters.paymentMethod);
+    }
+
     if (filters.submittedBy) {
       sql += ' AND e.submitted_by = ?';
       params.push(Number(filters.submittedBy));
+    }
+
+    if (filters.approvedBy) {
+      sql += ' AND e.approved_by = ?';
+      params.push(Number(filters.approvedBy));
     }
 
     if (filters.startDate) {
@@ -88,13 +94,46 @@ export class ExpensesRepository {
       params.push(filters.endDate);
     }
 
-    if (filters.search) {
-      sql += ' AND (e.title LIKE ? OR e.vendor_name LIKE ? OR e.reference_no LIKE ?)';
-      const term = `%${filters.search}%`;
-      params.push(term, term, term);
+    if (filters.minAmount !== undefined && filters.minAmount !== '') {
+      sql += ' AND e.amount >= ?';
+      params.push(Number(filters.minAmount));
     }
 
-    sql += ' ORDER BY e.expense_date DESC, e.id DESC';
+    if (filters.maxAmount !== undefined && filters.maxAmount !== '') {
+      sql += ' AND e.amount <= ?';
+      params.push(Number(filters.maxAmount));
+    }
+
+    if (filters.hasReceipts === 'yes') {
+      sql += ' AND (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) > 0';
+    } else if (filters.hasReceipts === 'no') {
+      sql += ' AND (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) = 0';
+    }
+
+    if (filters.vendor) {
+      sql += ' AND e.vendor_name LIKE ?';
+      params.push(`%${filters.vendor}%`);
+    }
+
+    if (filters.search) {
+      sql += ' AND (e.title LIKE ? OR e.vendor_name LIKE ? OR e.reference_no LIKE ? OR e.description LIKE ? OR u.name LIKE ?)';
+      const term = `%${filters.search}%`;
+      params.push(term, term, term, term, term);
+    }
+
+    // Dynamic Sorting
+    const sortMap = {
+      amount_desc: 'e.amount DESC, e.expense_date DESC',
+      amount_asc: 'e.amount ASC, e.expense_date DESC',
+      date_asc: 'e.expense_date ASC, e.id ASC',
+      date_desc: 'e.expense_date DESC, e.id DESC',
+      ref_asc: 'e.reference_no ASC',
+      ref_desc: 'e.reference_no DESC',
+      title_asc: 'e.title ASC',
+    };
+
+    const sortClause = sortMap[filters.sortBy] || 'e.expense_date DESC, e.id DESC';
+    sql += ` ORDER BY ${sortClause}`;
 
     return db.getAll(sql, params);
   }
@@ -109,11 +148,16 @@ export class ExpensesRepository {
         c.name as category_name,
         c.icon as category_icon,
         u.name as submitter_name,
-        u.email as submitter_email
+        u.email as submitter_email,
+        app.name as approver_name,
+        app.role as approver_role,
+        proc.name as processor_name
       FROM expenses e
       JOIN projects p ON e.project_id = p.id
       JOIN categories c ON e.category_id = c.id
       JOIN users u ON e.submitted_by = u.id
+      LEFT JOIN users app ON e.approved_by = app.id
+      LEFT JOIN users proc ON e.processed_by = proc.id
       WHERE e.id = ?`,
       [id]
     );
@@ -190,6 +234,12 @@ export class ExpensesRepository {
       'payment_method',
       'status',
       'rejection_reason',
+      'approved_by',
+      'approved_at',
+      'approval_comments',
+      'processed_by',
+      'processed_at',
+      'payment_reference',
     ];
 
     for (const key of allowed) {

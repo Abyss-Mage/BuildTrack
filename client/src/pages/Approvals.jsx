@@ -2,22 +2,28 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
-import StatusBadge from '../components/ui/StatusBadge';
-import Modal from '../components/ui/Modal';
 import ExpenseDetailModal from './ExpenseDetailModal';
+import Modal from '../components/ui/Modal';
+import StatusBadge from '../components/ui/StatusBadge';
 import {
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Building2,
-  Tag,
-  Paperclip,
+  CheckSquare,
   Check,
   X,
-  CreditCard,
-  Loader2,
-  AlertCircle,
   FileCheck,
+  Search,
+  Filter,
+  DollarSign,
+  Paperclip,
+  Clock,
+  ArrowUpDown,
+  Building2,
+  Calendar,
+  Layers,
+  Loader2,
+  AlertTriangle,
+  RotateCcw,
+  Shield,
+  AlertCircle,
 } from 'lucide-react';
 
 export function Approvals() {
@@ -26,41 +32,115 @@ export function Approvals() {
 
   const [queue, setQueue] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [categories, setCategories] = useState([]);
 
-  // Rejection Dialog Modal
+  // Multi-criteria filter state
+  const [filters, setFilters] = useState({
+    projectId: '',
+    categoryId: '',
+    minAmount: '',
+    maxAmount: '',
+    hasReceipts: '',
+    status: '',
+    search: '',
+    sortBy: 'newest',
+  });
+
+  // Modal / Detail State
+  const [selectedExpense, setSelectedExpense] = useState(null);
   const [rejectingItem, setRejectingItem] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
-
-  // Selected Detail Modal
-  const [selectedExpense, setSelectedExpense] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const isAccountant = user?.role === 'accountant';
   const isPM = user?.role === 'project_manager';
   const isAdmin = user?.role === 'admin';
 
+  const loadProjects = async () => {
+    try {
+      const res = await api.get('/projects');
+      setProjects(res.data.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadCategories = async () => {
+    try {
+      const res = await api.get('/categories');
+      setCategories(res.data.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadQueue = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/approvals/pending');
+      const params = {};
+      if (filters.projectId) params.projectId = filters.projectId;
+      if (filters.categoryId) params.categoryId = filters.categoryId;
+      if (filters.minAmount) params.minAmount = filters.minAmount;
+      if (filters.maxAmount) params.maxAmount = filters.maxAmount;
+      if (filters.hasReceipts) params.hasReceipts = filters.hasReceipts;
+      if (filters.status) params.status = filters.status;
+      if (filters.search) params.search = filters.search;
+      if (filters.sortBy) params.sortBy = filters.sortBy;
+
+      const res = await api.get('/approvals', { params });
       setQueue(res.data.data || []);
     } catch (err) {
-      showNotification(err.response?.data?.message || 'Failed to load approval queue', 'error');
+      showNotification('Failed to load approvals queue', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadQueue();
+    loadProjects();
+    loadCategories();
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadQueue();
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [filters]);
+
+  const resetFilters = () => {
+    setFilters({
+      projectId: '',
+      categoryId: '',
+      minAmount: '',
+      maxAmount: '',
+      hasReceipts: '',
+      status: '',
+      search: '',
+      sortBy: 'newest',
+    });
+  };
+
+  const hasActiveFilters = Boolean(
+    filters.projectId ||
+      filters.categoryId ||
+      filters.minAmount ||
+      filters.maxAmount ||
+      filters.hasReceipts ||
+      filters.status ||
+      filters.search ||
+      filters.sortBy !== 'newest'
+  );
 
   const handleApprove = async (expenseId, e) => {
     e.stopPropagation();
     try {
       setActionLoading(true);
-      await api.post(`/approvals/${expenseId}/approve`, { comments: 'Approved on site verification' });
-      showNotification('Expense successfully approved');
+      await api.post(`/approvals/${expenseId}/approve`, {
+        comments: 'Verified against site delivery challan & receipts',
+      });
+      showNotification('Expense successfully approved!');
       loadQueue();
     } catch (err) {
       showNotification(err.response?.data?.message || 'Approval failed', 'error');
@@ -113,46 +193,157 @@ export function Approvals() {
     }
   };
 
+  const totalQueueAmount = queue.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Expense Approval & Settlement Queue
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <CheckSquare className="w-6 h-6 text-brand-500" />
+            <span>Expense Approval & Settlement Queue</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             {isAccountant
               ? 'Review approved vouchers for payment processing and banking reconciliation.'
-              : 'Review submitted site vouchers from engineers against deliveries and receipts.'}
+              : 'Review submitted site vouchers from engineers against deliveries, receipts, and role expenditure caps.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold font-mono">
-            {queue.length} Pending Actions
+            {queue.length} Pending Actions • ₹ {totalQueueAmount.toLocaleString('en-IN')}
           </span>
         </div>
       </div>
 
-      {/* Queue Listing */}
+      {/* Filter Toolbar */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              placeholder="Search ref #, title, vendor, engineer..."
+              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+
+          {/* Project Site Filter */}
+          <div>
+            <select
+              value={filters.projectId}
+              onChange={(e) => setFilters({ ...filters, projectId: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">All Project Sites</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.code}] {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <select
+              value={filters.categoryId}
+              onChange={(e) => setFilters({ ...filters, categoryId: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sort By */}
+          <div>
+            <select
+              value={filters.sortBy}
+              onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+              className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="newest">Submission Date: Newest First</option>
+              <option value="oldest">Submission Date: Oldest First</option>
+              <option value="amount_desc">Amount: Highest First</option>
+              <option value="amount_asc">Amount: Lowest First</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Aggregate Strip */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 text-xs text-slate-500">
+          <div className="flex items-center gap-3">
+            <span>
+              Queue: <strong>{queue.length}</strong> vouchers
+            </span>
+            <span>•</span>
+            <span>
+              Total: <strong>₹ {totalQueueAmount.toLocaleString('en-IN')}</strong>
+            </span>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filters</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Queue List */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin text-brand-500 mb-2" />
-          <p className="text-sm">Loading vouchers for review...</p>
+          <p className="text-sm">Refreshing review queue...</p>
         </div>
       ) : queue.length === 0 ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center">
-          <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-slate-800">Queue is Clear!</h3>
+        <div className="p-16 text-center bg-white rounded-3xl border border-slate-200/80">
+          <CheckSquare className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="text-base font-semibold text-slate-800">Review Queue Clear</h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-            There are currently no vouchers pending your approval or settlement.
+            {hasActiveFilters
+              ? 'No vouchers match your filter criteria.'
+              : 'All submitted site expenditures have been reviewed and acted upon.'}
           </p>
+          {hasActiveFilters && (
+            <button
+              onClick={resetFilters}
+              className="mt-4 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
           {queue.map((item) => {
             const isApprovedForPayout = item.status === 'approved';
+
+            // Check if expense exceeds PM's project approval limit
+            const hasExceededRoleLimit =
+              !isAdmin &&
+              item.role_max_limit !== null &&
+              item.role_max_limit !== undefined &&
+              Number(item.amount) > Number(item.role_max_limit);
+
+            const isUnauthorizedRole =
+              !isAdmin && item.role_can_approve !== undefined && item.role_can_approve === 0;
+
+            const cannotApproveDueToLimit = hasExceededRoleLimit || isUnauthorizedRole;
 
             return (
               <div
@@ -166,6 +357,28 @@ export function Approvals() {
                       {item.reference_no}
                     </span>
                     <StatusBadge status={item.status} size="xs" />
+
+                    {/* Show Approver info if already approved */}
+                    {item.approver_name && (
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        Approved by: {item.approver_name} ({item.approver_role?.replace('_', ' ') || 'PM'})
+                      </span>
+                    )}
+
+                    {/* Expenditure Allocation Limit Badge */}
+                    {item.status === 'pending' && hasExceededRoleLimit && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        Exceeds PM limit (₹{Number(item.role_max_limit).toLocaleString('en-IN')}) - Requires Admin Approval
+                      </span>
+                    )}
+
+                    {item.status === 'pending' && !hasExceededRoleLimit && item.role_max_limit && (
+                      <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        Within Role Limit (Max ₹{Number(item.role_max_limit).toLocaleString('en-IN')})
+                      </span>
+                    )}
+
                     <span className="text-xs text-slate-400">•</span>
                     <span className="text-xs text-slate-500">{item.expense_date}</span>
                     <span className="text-xs text-slate-400">•</span>
@@ -227,11 +440,16 @@ export function Approvals() {
 
                         <button
                           onClick={(e) => handleApprove(item.id, e)}
-                          disabled={actionLoading}
-                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-50"
+                          disabled={actionLoading || (!isAdmin && cannotApproveDueToLimit)}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={
+                            cannotApproveDueToLimit && !isAdmin
+                              ? 'This amount exceeds your role approval limit for this project. Only an Admin can approve.'
+                              : 'Approve this expenditure'
+                          }
                         >
                           <Check className="w-4 h-4" />
-                          <span>Approve</span>
+                          <span>{cannotApproveDueToLimit && !isAdmin ? 'Admin Approval Req.' : 'Approve'}</span>
                         </button>
                       </>
                     )}
@@ -258,22 +476,12 @@ export function Approvals() {
       {/* Rejection Reason Modal */}
       {rejectingItem && (
         <Modal
-          isOpen={!!rejectingItem}
+          isOpen={Boolean(rejectingItem)}
           onClose={() => setRejectingItem(null)}
-          title="Reject Site Expense"
+          title={`Reject Expense: ${rejectingItem.reference_no}`}
           maxWidth="max-w-md"
         >
           <form onSubmit={handleConfirmReject} className="space-y-4">
-            <div className="p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start gap-2.5 text-xs text-rose-800">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Rejecting {rejectingItem.reference_no}</p>
-                <p className="mt-0.5 text-slate-600">
-                  The submitter will receive your comments and can adjust the voucher and resubmit.
-                </p>
-              </div>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Reason for Rejection *
@@ -282,13 +490,13 @@ export function Approvals() {
                 rows="3"
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="e.g. Rate for 53 grade cement exceeds agreed vendor contract rate, or missing delivery challan stamp."
+                placeholder="e.g. Receipt is blurred, bill amount does not match challan..."
                 required
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setRejectingItem(null)}
@@ -299,9 +507,10 @@ export function Approvals() {
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md transition-all disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md disabled:opacity-50"
               >
-                Confirm Rejection
+                {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Confirm Rejection</span>
               </button>
             </div>
           </form>
@@ -311,7 +520,7 @@ export function Approvals() {
       {/* Expense Detail Modal */}
       {selectedExpense && (
         <ExpenseDetailModal
-          isOpen={!!selectedExpense}
+          isOpen={Boolean(selectedExpense)}
           onClose={() => setSelectedExpense(null)}
           expense={selectedExpense}
           onActionSuccess={loadQueue}

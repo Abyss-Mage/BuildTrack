@@ -36,15 +36,17 @@ CREATE TABLE IF NOT EXISTS projects (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 );
 
-CREATE TABLE IF NOT EXISTS project_members (
+-- Per Role Expenditure Approval Allocation per Project
+CREATE TABLE IF NOT EXISTS project_role_approval_limits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
-  user_id INTEGER NOT NULL,
-  role_in_project TEXT NOT NULL DEFAULT 'engineer',
-  assigned_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  UNIQUE(project_id, user_id),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  role TEXT NOT NULL,
+  can_approve INTEGER NOT NULL DEFAULT 1,
+  max_amount_per_expense REAL DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  UNIQUE(project_id, role),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -70,11 +72,19 @@ CREATE TABLE IF NOT EXISTS expenses (
   payment_method TEXT NOT NULL DEFAULT 'cash',
   status TEXT NOT NULL DEFAULT 'pending',
   rejection_reason TEXT,
+  approved_by INTEGER DEFAULT NULL,
+  approved_at TEXT DEFAULT NULL,
+  approval_comments TEXT DEFAULT NULL,
+  processed_by INTEGER DEFAULT NULL,
+  processed_at TEXT DEFAULT NULL,
+  payment_reference TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
-  FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE RESTRICT
+  FOREIGN KEY (submitted_by) REFERENCES users(id) ON DELETE RESTRICT,
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS receipts (
@@ -98,6 +108,46 @@ CREATE TABLE IF NOT EXISTS approvals (
   acted_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
   FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+-- Full Audit Log for Super Admin Access Only
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER DEFAULT NULL,
+  user_name TEXT,
+  user_email TEXT,
+  user_role TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  ip_address TEXT,
+  user_agent TEXT,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Construction Payroll System
+CREATE TABLE IF NOT EXISTS payroll (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  payroll_month TEXT NOT NULL,
+  base_salary REAL NOT NULL DEFAULT 0.0,
+  allowances REAL NOT NULL DEFAULT 0.0,
+  deductions REAL NOT NULL DEFAULT 0.0,
+  net_salary REAL NOT NULL DEFAULT 0.0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  payment_method TEXT NOT NULL DEFAULT 'bank_transfer',
+  payment_date TEXT,
+  payment_reference TEXT,
+  notes TEXT,
+  whatsapp_sent_at TEXT,
+  created_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  UNIQUE(user_id, payroll_month),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 );
 `;
 
@@ -124,6 +174,24 @@ export async function initializeDatabase() {
   } else {
     await db.exec(SQLITE_SCHEMA);
     console.log('[Database Init] SQLite schema tables verified.');
+  }
+
+  // Safe migrations for newly added columns if table previously existed
+  const newExpenseCols = [
+    { col: 'approved_by', def: 'INTEGER DEFAULT NULL' },
+    { col: 'approved_at', def: 'TEXT DEFAULT NULL' },
+    { col: 'approval_comments', def: 'TEXT DEFAULT NULL' },
+    { col: 'processed_by', def: 'INTEGER DEFAULT NULL' },
+    { col: 'processed_at', def: 'TEXT DEFAULT NULL' },
+    { col: 'payment_reference', def: 'TEXT DEFAULT NULL' },
+  ];
+
+  for (const { col, def } of newExpenseCols) {
+    try {
+      await db.execute(`ALTER TABLE expenses ADD COLUMN ${col} ${def}`);
+    } catch (e) {
+      // Column already exists, safe to ignore
+    }
   }
 
   // Seed standard master categories if missing

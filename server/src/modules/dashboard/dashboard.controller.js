@@ -3,11 +3,11 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 
 export const getDashboardSummary = asyncHandler(async (req, res) => {
   const [summary, categories, projects, monthlyTrends, recentExpenses] = await Promise.all([
-    DashboardService.getSummary(req.user),
-    DashboardService.getCategoryBreakdown(req.user),
-    DashboardService.getProjectBreakdown(req.user),
-    DashboardService.getMonthlyTrends(req.user),
-    DashboardService.getRecentExpenses(req.user),
+    DashboardService.getSummary(req.user, req.query),
+    DashboardService.getCategoryBreakdown(req.user, req.query),
+    DashboardService.getProjectBreakdown(req.user, req.query),
+    DashboardService.getMonthlyTrends(req.user, req.query),
+    DashboardService.getRecentExpenses(req.user, req.query),
   ]);
 
   res.status(200).json({

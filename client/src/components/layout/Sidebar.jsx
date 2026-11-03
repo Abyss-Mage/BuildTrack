@@ -13,6 +13,10 @@ import {
   HardHat,
   X,
   LogOut,
+  Landmark,
+  Banknote,
+  ShieldAlert,
+  Settings as SettingsIcon,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -26,9 +30,13 @@ export function Sidebar() {
     { name: 'Projects', to: '/projects', icon: Building2, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
     { name: 'Expenses', to: '/expenses', icon: Receipt, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
     { name: 'Approvals', to: '/approvals', icon: CheckSquare, roles: ['admin', 'project_manager', 'accountant'] },
+    { name: 'Accounts & Payouts', to: '/accounts', icon: Landmark, roles: ['admin', 'accountant', 'project_manager'] },
+    { name: 'Payroll & Wages', to: '/payroll', icon: Banknote, roles: ['admin', 'accountant', 'site_engineer', 'project_manager'] },
     { name: 'Reports & P&L', to: '/reports', icon: BarChart3, roles: ['admin', 'project_manager', 'accountant'] },
     { name: 'Team Users', to: '/users', icon: Users, roles: ['admin'] },
+    { name: 'Audit Logs', to: '/audit-logs', icon: ShieldAlert, roles: ['admin'] },
     { name: 'Categories', to: '/categories', icon: Tags, roles: ['admin'] },
+    { name: 'Account Settings', to: '/settings', icon: SettingsIcon, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
   ];
 
   const visibleItems = navItems.filter((item) => isRole(item.roles));
@@ -75,17 +83,24 @@ export function Sidebar() {
 
         {/* Current User Card */}
         <div className="px-4 py-3 border-b border-slate-800/80 bg-slate-950/20">
-          <div className="flex items-center gap-3 p-2 rounded-xl bg-slate-800/60">
+          <NavLink
+            to="/settings"
+            onClick={() => setSidebarOpen(false)}
+            className="flex items-center gap-3 p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 transition-colors cursor-pointer group"
+          >
             <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30 flex items-center justify-center font-bold text-xs uppercase">
               {user?.name?.slice(0, 2) || 'US'}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-xs font-semibold text-white truncate">{user?.name}</p>
+            <div className="overflow-hidden flex-1">
+              <p className="text-xs font-semibold text-white truncate group-hover:text-brand-300 transition-colors">
+                {user?.name}
+              </p>
               <p className="text-[10px] text-brand-400 font-medium capitalize truncate">
                 {user?.role?.replace('_', ' ')}
               </p>
             </div>
-          </div>
+            <SettingsIcon className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />
+          </NavLink>
         </div>
 
         {/* Navigation Links */}
