@@ -24,7 +24,8 @@ export const env = {
 
   // Initial Super Admin Setup (Used when database is initialized)
   INITIAL_ADMIN_EMAIL: process.env.INITIAL_ADMIN_EMAIL || 'admin@construction.com',
-  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || 'Admin@123',
+  // Dev-only default; in production an unset value makes the init script generate a one-time password
+  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'Admin@123'),
   INITIAL_ADMIN_NAME: process.env.INITIAL_ADMIN_NAME || 'Super Admin',
   INITIAL_ADMIN_PHONE: process.env.INITIAL_ADMIN_PHONE || '+91 98765 43210',
 

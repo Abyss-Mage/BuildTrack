@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -140,6 +141,19 @@ CREATE TABLE IF NOT EXISTS payroll (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 );
+
+-- Per-project, per-role approval caps (read by the approvals queue)
+CREATE TABLE IF NOT EXISTS project_role_approval_limits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  role TEXT NOT NULL,
+  max_amount_per_expense REAL DEFAULT NULL,
+  can_approve INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  UNIQUE(project_id, role),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
 `;
 
 // Standard Construction Master Categories
@@ -212,8 +226,12 @@ export async function initializeDatabase() {
   const existingAdmin = await db.getOne("SELECT id, email FROM users WHERE role = 'admin' LIMIT 1");
 
   if (!existingAdmin) {
+    // No well-known default in production: generate a one-time password and print it once
+    const generatedPassword = env.INITIAL_ADMIN_PASSWORD ? null : crypto.randomBytes(12).toString('base64url');
+    const initialPassword = env.INITIAL_ADMIN_PASSWORD || generatedPassword;
+
     const salt = await bcrypt.genSalt(10);
-    const adminPasswordHash = await bcrypt.hash(env.INITIAL_ADMIN_PASSWORD, salt);
+    const adminPasswordHash = await bcrypt.hash(initialPassword, salt);
 
     await db.insert(
       'INSERT INTO users (name, email, password_hash, role, phone, is_active) VALUES (?, ?, ?, ?, ?, 1)',
@@ -229,6 +247,9 @@ export async function initializeDatabase() {
     console.log('[Database Init] Initial Super Admin account created:');
     console.log(`  - Email: ${env.INITIAL_ADMIN_EMAIL}`);
     console.log(`  - Role: Super Admin (Company Owner)`);
+    if (generatedPassword) {
+      console.log(`  - One-time password (change it after first login): ${generatedPassword}`);
+    }
   } else {
     console.log('[Database Init] Admin account already exists. Skipping user creation.');
   }

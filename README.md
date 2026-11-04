@@ -87,7 +87,7 @@ When the system is first initialized, the initial Super Admin account is provisi
 | Credential | Value | Configurable In `.env` |
 |---|---|---|
 | **Email** | `admin@construction.com` | `INITIAL_ADMIN_EMAIL` |
-| **Password** | `Admin@123` | `INITIAL_ADMIN_PASSWORD` |
+| **Password** | `<your-initial-password>` | `INITIAL_ADMIN_PASSWORD` |
 | **Role** | Super Admin (Company Owner) | Full Access |
 
 > [!NOTE]

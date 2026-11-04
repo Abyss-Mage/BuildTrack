@@ -151,3 +151,17 @@ CREATE TABLE IF NOT EXISTS payroll (
   INDEX idx_payroll_period (payroll_period),
   INDEX idx_payroll_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-project, per-role approval caps (read by the approvals queue)
+CREATE TABLE IF NOT EXISTS project_role_approval_limits (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  role ENUM('admin', 'project_manager', 'site_engineer', 'accountant') NOT NULL,
+  max_amount_per_expense DECIMAL(15, 2) DEFAULT NULL,
+  can_approve TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_project_role (project_id, role),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  INDEX idx_pral_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
