@@ -35,3 +35,7 @@ export const env = {
   // Client URL for CORS
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 };
+
+if (env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in production. Add it to the environment variables in hPanel.');
+}

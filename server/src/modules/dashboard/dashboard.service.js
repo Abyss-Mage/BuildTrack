@@ -1,5 +1,12 @@
 import db from '../../config/database.js';
 
+// "N months ago" in the active database dialect (the app runs on SQLite locally and MySQL on Hostinger)
+function monthsAgo(months) {
+  return db.getClientType() === 'mysql'
+    ? `DATE_SUB(CURDATE(), INTERVAL ${Number(months)} MONTH)`
+    : `date('now', '-${Number(months)} month')`;
+}
+
 function buildDateRange(filters) {
   let sql = '';
   const params = [];
@@ -114,11 +121,11 @@ export class DashboardService {
     params.push(...range.params);
     if (!filters.startDate && !filters.endDate) {
       if (filters.timeframe === 'month') {
-        projectScope += ` AND e.expense_date >= date('now', '-1 month')`;
+        projectScope += ` AND e.expense_date >= ${monthsAgo(1)}`;
       } else if (filters.timeframe === 'quarter') {
-        projectScope += ` AND e.expense_date >= date('now', '-3 month')`;
+        projectScope += ` AND e.expense_date >= ${monthsAgo(3)}`;
       } else if (filters.timeframe === 'year') {
-        projectScope += ` AND e.expense_date >= date('now', '-1 year')`;
+        projectScope += ` AND e.expense_date >= ${monthsAgo(12)}`;
       }
     }
 
@@ -190,7 +197,7 @@ export class DashboardService {
       params.push(Number(filters.projectId));
     }
 
-    const interval = filters.timeframe === 'year' ? '-12 month' : filters.timeframe === 'quarter' ? '-3 month' : '-6 month';
+    const months = filters.timeframe === 'year' ? 12 : filters.timeframe === 'quarter' ? 3 : 6;
 
     const sql = `
       SELECT 
@@ -198,7 +205,7 @@ export class DashboardService {
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as approved_amount,
         COALESCE(SUM(CASE WHEN e.status = 'pending' THEN e.amount ELSE 0 END), 0) as pending_amount
       FROM expenses e
-      WHERE e.expense_date >= date('now', '${interval}')
+      WHERE e.expense_date >= ${monthsAgo(months)}
       ${projectScope}
       GROUP BY SUBSTR(e.expense_date, 1, 7)
       ORDER BY month ASC

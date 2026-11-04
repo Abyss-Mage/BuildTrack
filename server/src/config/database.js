@@ -1,5 +1,4 @@
 import mysql from 'mysql2/promise';
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,6 +42,8 @@ if (activeClient === 'mysql' && env.DB_USER) {
 
 if (activeClient === 'sqlite') {
   const sqliteFile = path.join(dataDir, 'app.sqlite');
+  // Loaded lazily: node:sqlite requires Node 22.5+, and MySQL deployments must not depend on it
+  const { DatabaseSync } = await import('node:sqlite');
   sqliteDb = new DatabaseSync(sqliteFile);
   sqliteDb.exec('PRAGMA foreign_keys = ON;');
   console.log(`[Database] Using SQLite storage at ${sqliteFile}`);

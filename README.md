@@ -110,17 +110,12 @@ When the system is first initialized, the initial Super Admin account is provisi
 1. In hPanel, navigate to **Websites** ➔ Select your domain ➔ **Node.js** (or **Web Apps**).
 2. Connect your **GitHub repository** or upload your project archive.
 3. Configure the application settings:
-   - **Node.js Version**: Select `20.x` or `22.x`
+   - **Node.js Version**: Select `20.x` or `22.x` (MySQL mode works on both; the SQLite fallback needs 22.5+)
    - **Application Root**: `/` (repository root)
    - **Application Startup File**: `server/src/server.js`
-   - **Build Command**:
-     ```bash
-     cd client && npm install && npm run build && cd ../server && npm install
-     ```
-   - **Run Command**:
-     ```bash
-     npm start
-     ```
+   - **Install Command**: `npm install` (the root `postinstall` script installs `server/` and `client/` dependencies, including the Vite build tooling)
+   - **Build Command**: `npm run build`
+   - **Run Command**: `npm start`
 
 ### Step 3: Set Environment Variables in hPanel
 Under **Environment Variables** in the Node.js app dashboard, add:
