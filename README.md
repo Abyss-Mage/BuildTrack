@@ -65,13 +65,8 @@ cd ExpenseTracker
 npm run install:all
 ```
 
-### 2. Initialize Database
-Initializes the database tables and master categories, and creates the primary Super Admin account:
-```bash
-npm run db:init
-```
-
-### 3. Start Application
+### 2. Start Application
+The first start creates the database tables, master categories and the Super Admin account.
 ```bash
 # Starts Express API on port 5000 and Vite React dev server on port 5173
 npm run dev
@@ -182,7 +177,7 @@ ExpenseTracker/
 │       │   └── database.js         # Unified MySQL pool & SQLite dev engine
 │       ├── database/
 │       │   ├── schema.sql          # Native MySQL DDL schema
-│       │   ├── seed.sql            # Master categories & super admin
+│       │   ├── seed.sql            # Master categories
 │       │   └── init.js             # Automated DB migration and admin provisioner
 │       ├── middleware/
 │       │   ├── auth.js             # JWT verification & active user check

@@ -2,6 +2,11 @@
  * Utilities for Construction Weekly Payroll & Date Ranges
  */
 
+// YYYY-MM-DD in the user's own time zone; toISOString alone gives the UTC day, which is a day behind in India
+export function toLocalDate(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 export function getISOWeekDetails(dateInput = new Date()) {
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return getISOWeekDetails(new Date());

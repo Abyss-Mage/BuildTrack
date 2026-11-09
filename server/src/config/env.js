@@ -8,11 +8,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
+// Unset counts as production so a missed setting can never unlock the dev-only defaults below
+const NODE_ENV = process.env.NODE_ENV || 'production';
+const isDev = NODE_ENV === 'development';
+
 export const env = {
   PORT: process.env.PORT || 5000,
-  NODE_ENV: process.env.NODE_ENV || 'development',
-  JWT_SECRET: process.env.JWT_SECRET || 'dev_secret_construction_expense_tracker_2026_xyz',
-  
+  NODE_ENV,
+  JWT_SECRET: process.env.JWT_SECRET || (isDev ? 'dev_secret_construction_expense_tracker_2026_xyz' : ''),
+
   // Database configuration
   // For Hostinger Cloud: set DB_CLIENT=mysql, DB_HOST=127.0.0.1
   DB_CLIENT: process.env.DB_CLIENT || (process.env.DB_USER ? 'mysql' : 'sqlite'),
@@ -24,8 +28,8 @@ export const env = {
 
   // Initial Super Admin Setup (Used when database is initialized)
   INITIAL_ADMIN_EMAIL: process.env.INITIAL_ADMIN_EMAIL || 'admin@construction.com',
-  // Dev-only default; in production an unset value makes the init script generate a one-time password
-  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'Admin@123'),
+  // Dev-only default; otherwise an unset value makes the init script generate a one-time password
+  INITIAL_ADMIN_PASSWORD: process.env.INITIAL_ADMIN_PASSWORD || (isDev ? 'Admin@123' : ''),
   INITIAL_ADMIN_NAME: process.env.INITIAL_ADMIN_NAME || 'Super Admin',
   INITIAL_ADMIN_PHONE: process.env.INITIAL_ADMIN_PHONE || '+91 98765 43210',
 
@@ -37,6 +41,6 @@ export const env = {
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 };
 
-if (env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+if (!env.JWT_SECRET) {
   throw new Error('JWT_SECRET must be set in production. Add it to the environment variables in hPanel.');
 }

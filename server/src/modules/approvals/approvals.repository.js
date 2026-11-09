@@ -29,7 +29,8 @@ export class ApprovalsRepository {
     if (user.role === 'accountant') {
       sql += ` WHERE e.status = 'approved'`;
     } else if (user.role === 'project_manager') {
-      sql += ` WHERE e.status = 'pending'`;
+      sql += ` WHERE e.status = 'pending' AND e.submitted_by <> ?`;
+      params.push(user.id);
       // Vouchers above the manager's own approval limit are not shown; no limit means unlimited
       if (user.approval_limit !== null && user.approval_limit !== undefined) {
         sql += ' AND e.amount <= ?';

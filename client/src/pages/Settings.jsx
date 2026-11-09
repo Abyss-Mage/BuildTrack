@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export function Settings() {
-  const { user, setUser } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const { showNotification } = useUiStore();
 
   // Profile Form
@@ -39,7 +39,7 @@ export function Settings() {
     try {
       setIsUpdatingProfile(true);
       const res = await api.put('/auth/profile', profileData);
-      setUser(res.data.data);
+      updateUser(res.data.data);
       showNotification('Profile updated successfully');
     } catch (err) {
       showNotification(err.response?.data?.message || 'Failed to update profile', 'error');

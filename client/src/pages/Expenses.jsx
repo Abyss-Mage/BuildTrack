@@ -21,6 +21,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Expenses() {
   const { user } = useAuthStore();
@@ -146,21 +147,21 @@ export function Expenses() {
   const applyDatePreset = (preset) => {
     const now = new Date();
     let start = '';
-    let end = now.toISOString().split('T')[0];
+    let end = toLocalDate(now);
 
     if (preset === 'today') {
       start = end;
     } else if (preset === 'week') {
       const d = new Date();
       d.setDate(d.getDate() - 7);
-      start = d.toISOString().split('T')[0];
+      start = toLocalDate(d);
     } else if (preset === 'month') {
       start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     } else if (preset === 'last_month') {
       const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const lastDayOfPrev = new Date(now.getFullYear(), now.getMonth(), 0);
-      start = prevMonthDate.toISOString().split('T')[0];
-      end = lastDayOfPrev.toISOString().split('T')[0];
+      start = toLocalDate(prevMonthDate);
+      end = toLocalDate(lastDayOfPrev);
     } else if (preset === 'year') {
       start = `${now.getFullYear()}-01-01`;
     } else {

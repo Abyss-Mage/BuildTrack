@@ -21,6 +21,10 @@ export class ApprovalsService {
       throw ApiError.forbidden('Only Project Managers or Admins can approve pending expenses.');
     }
 
+    if (user.role !== 'admin' && expense.submitted_by === user.id) {
+      throw ApiError.forbidden('You cannot approve your own expense. Another manager or an Admin must approve it.');
+    }
+
     // Per-Account Expenditure Approval Limit Enforcement
     if (user.role !== 'admin') {
       const approver = await db.getOne(

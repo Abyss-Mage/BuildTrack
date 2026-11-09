@@ -271,12 +271,4 @@ export class ExpensesRepository {
   static async delete(id) {
     await db.execute('DELETE FROM expenses WHERE id = ?', [id]);
   }
-
-  static async deleteReceipt(receiptId) {
-    const receipt = await db.getOne('SELECT * FROM receipts WHERE id = ?', [receiptId]);
-    if (receipt) {
-      await db.execute('DELETE FROM receipts WHERE id = ?', [receiptId]);
-    }
-    return receipt;
-  }
 }

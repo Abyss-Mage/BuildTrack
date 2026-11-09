@@ -22,12 +22,14 @@ import {
   X,
   RotateCcw,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Accounts() {
   const { user } = useAuthStore();
   const { showNotification } = useUiStore();
 
-  const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'settlements'
+  const canDisburse = ['admin', 'accountant'].includes(user?.role);
+  const [activeTab, setActiveTab] = useState(canDisburse ? 'queue' : 'settlements'); // 'queue' | 'settlements'
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -58,7 +60,7 @@ export function Accounts() {
     payment_method: 'bank_transfer',
     payment_reference: '',
     comments: '',
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: toLocalDate(),
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,12 +87,14 @@ export function Accounts() {
 
       const [sumRes, queueRes, settRes] = await Promise.all([
         api.get('/accounts/summary'),
-        api.get('/accounts/queue', { params }),
+        canDisburse ? api.get('/accounts/queue', { params }) : Promise.resolve({ data: { data: [] } }),
         api.get('/accounts/settlements', { params }),
       ]);
 
       setSummary(sumRes.data.data);
       setQueue(queueRes.data.data || []);
+      // A tick must never outlive its row: filtered-out or already-paid vouchers would be paid unseen
+      setSelectedIds((prev) => prev.filter((id) => queueRes.data.data.some((item) => item.id === id)));
       setSettlements(settRes.data.data || []);
     } catch (err) {
       showNotification('Failed to load accounts data', 'error');
@@ -157,7 +161,7 @@ export function Accounts() {
       payment_method: expense.payment_method || 'bank_transfer',
       payment_reference: '',
       comments: '',
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: toLocalDate(),
     });
     setIsPayoutModalOpen(true);
   };
@@ -171,7 +175,7 @@ export function Accounts() {
       payment_method: 'bank_transfer',
       payment_reference: '',
       comments: '',
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: toLocalDate(),
     });
     setIsPayoutModalOpen(true);
   };
@@ -181,11 +185,11 @@ export function Accounts() {
     try {
       setIsSubmitting(true);
       if (isBulkPayout) {
-        await api.post('/accounts/bulk-process', {
+        const res = await api.post('/accounts/bulk-process', {
           expense_ids: selectedIds,
           ...payoutForm,
         });
-        showNotification(`Successfully disbursed ${selectedIds.length} vouchers!`);
+        showNotification(`Disbursed ${res.data.data.count} of ${selectedIds.length} vouchers`);
         setSelectedIds([]);
       } else {
         await api.post(`/accounts/process-payout/${targetExpense.id}`, payoutForm);
@@ -205,13 +209,13 @@ export function Accounts() {
     try {
       showNotification('Generating Settlement Excel report...', 'info');
       const response = await api.get('/reports/expenses/excel', {
-        params: { status: 'processed', ...filters },
+        params: { ledger: 'settlements', status: 'processed', ...filters },
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Accounts-Settlement-Ledger-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      link.setAttribute('download', `Accounts-Settlement-Ledger-${toLocalDate()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -332,17 +336,19 @@ export function Accounts() {
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-slate-200 gap-2">
-        <button
-          onClick={() => setActiveTab('queue')}
-          className={`pb-3 px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'queue'
-              ? 'border-brand-500 text-slate-950 font-black'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Pending Payout Queue ({queue.length})</span>
-        </button>
+        {canDisburse && (
+          <button
+            onClick={() => setActiveTab('queue')}
+            className={`pb-3 px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === 'queue'
+                ? 'border-brand-500 text-slate-950 font-black'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Pending Payout Queue ({queue.length})</span>
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('settlements')}

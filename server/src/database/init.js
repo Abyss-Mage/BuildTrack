@@ -210,6 +210,15 @@ export async function initializeDatabase() {
     // safe to ignore
   }
 
+  // User updates used to log the new password in plain text: strip it from old audit rows
+  const leakedRows = await db.getAll(
+    `SELECT id, details FROM audit_logs WHERE action = 'USER_UPDATE' AND details LIKE '%"password"%'`
+  );
+  for (const row of leakedRows) {
+    const { password, ...changes } = JSON.parse(row.details);
+    await db.execute('UPDATE audit_logs SET details = ? WHERE id = ?', [JSON.stringify(changes), row.id]);
+  }
+
   // Seed standard master categories if missing
   for (const cat of DEFAULT_CATEGORIES) {
     const existing = await db.getOne('SELECT id FROM categories WHERE name = ?', [cat.name]);

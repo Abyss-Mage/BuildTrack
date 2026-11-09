@@ -76,9 +76,9 @@ export function generateExpensePdfReport(expenses, metadata = {}) {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
-        doc.text(`₹ ${formattedAmt}`, 475, currentY + 5, { width: 75, align: 'right' });
+        doc.text(`Rs.${formattedAmt}`, 475, currentY + 5, { width: 75, align: 'right' });
 
-        totalAmount += Number(item.amount);
+        if (['approved', 'processed'].includes(item.status)) totalAmount += Number(item.amount);
         currentY += 20;
       });
 
@@ -86,12 +86,12 @@ export function generateExpensePdfReport(expenses, metadata = {}) {
       doc.moveDown(0.5);
       doc.rect(40, currentY + 4, 515, 24).fill('#e2e8f0');
       doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10);
-      doc.text('Total Expenditure:', 320, currentY + 10);
+      doc.text('Total Approved + Paid:', 320, currentY + 10);
       const totalFormatted = totalAmount.toLocaleString('en-IN', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
-      doc.text(`₹ ${totalFormatted}`, 460, currentY + 10, { width: 90, align: 'right' });
+      doc.text(`Rs.${totalFormatted}`, 460, currentY + 10, { width: 90, align: 'right' });
 
       doc.end();
     } catch (err) {
@@ -131,10 +131,10 @@ export function generateProjectPlPdf(project, breakdown = []) {
       doc.text('REMAINING BUDGET BALANCE', 375, cardY);
 
       doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold');
-      doc.text(`₹ ${budget.toLocaleString('en-IN')}`, 55, cardY + 16);
-      doc.text(`₹ ${spent.toLocaleString('en-IN')} (${utilization}%)`, 205, cardY + 16);
+      doc.text(`Rs.${budget.toLocaleString('en-IN')}`, 55, cardY + 16);
+      doc.text(`Rs.${spent.toLocaleString('en-IN')} (${utilization}%)`, 205, cardY + 16);
       doc.fillColor(remaining < 0 ? '#ef4444' : '#10b981');
-      doc.text(`₹ ${remaining.toLocaleString('en-IN')}`, 375, cardY + 16);
+      doc.text(`Rs.${remaining.toLocaleString('en-IN')}`, 375, cardY + 16);
 
       doc.font('Helvetica');
       doc.y = cardY + 60;
@@ -167,7 +167,7 @@ export function generateProjectPlPdf(project, breakdown = []) {
         doc.fillColor('#1e293b').fontSize(8.5);
         doc.text(item.category_name, 50, curY + 5, { width: 220 });
         doc.text(String(item.expense_count), 280, curY + 5, { width: 100, align: 'center' });
-        doc.text(`₹ ${Number(item.total_spent).toLocaleString('en-IN')}`, 400, curY + 5, {
+        doc.text(`Rs.${Number(item.total_spent).toLocaleString('en-IN')}`, 400, curY + 5, {
           width: 145,
           align: 'right',
         });

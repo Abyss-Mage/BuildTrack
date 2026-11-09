@@ -6,7 +6,6 @@ import {
   updateExpense,
   submitExpense,
   deleteExpense,
-  removeReceipt,
 } from './expenses.controller.js';
 import { createExpenseSchema, updateExpenseSchema } from './expenses.validation.js';
 import { auth } from '../../middleware/auth.js';
@@ -36,6 +35,5 @@ router.put(
 
 router.patch('/:id/submit', submitExpense);
 router.delete('/:id', deleteExpense);
-router.delete('/:id/receipts/:receiptId', removeReceipt);
 
 export default router;

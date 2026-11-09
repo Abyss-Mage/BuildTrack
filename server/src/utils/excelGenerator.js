@@ -91,13 +91,13 @@ export async function generateExpenseExcelReport(expenses, metadata = {}) {
     amountCell.numFmt = '₹ #,##0.00';
     amountCell.alignment = { horizontal: 'right' };
 
-    totalAmount += Number(item.amount);
+    if (['approved', 'processed'].includes(item.status)) totalAmount += Number(item.amount);
     rowIdx++;
   });
 
   // Summary Row
   const totalRow = worksheet.getRow(rowIdx + 1);
-  totalRow.getCell(11).value = 'TOTAL:';
+  totalRow.getCell(11).value = 'TOTAL (APPROVED + PAID):';
   totalRow.getCell(11).font = { name: 'Arial', size: 11, bold: true };
   totalRow.getCell(11).alignment = { horizontal: 'right' };
 

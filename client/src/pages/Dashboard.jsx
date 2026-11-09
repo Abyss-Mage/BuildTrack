@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Check,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -42,8 +43,8 @@ export function Dashboard() {
   mon.setDate(today.getDate() - (day - 1));
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
-  const defaultWeekStart = mon.toISOString().slice(0, 10);
-  const defaultWeekEnd = sun.toISOString().slice(0, 10);
+  const defaultWeekStart = toLocalDate(mon);
+  const defaultWeekEnd = toLocalDate(sun);
 
   const [loading, setLoading] = useState(true);
   const [projectsList, setProjectsList] = useState([]);
@@ -569,8 +570,8 @@ export function Dashboard() {
                   <button
                     type="button"
                     onClick={() => {
-                      const first = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-                      const last = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+                      const first = toLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
+                      const last = toLocalDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
                       setBroadcastStartDate(first);
                       setBroadcastEndDate(last);
                       loadBroadcastData(first, last);

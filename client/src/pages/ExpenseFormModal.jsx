@@ -3,6 +3,7 @@ import api from '../api/client';
 import Modal from '../components/ui/Modal';
 import { useUiStore } from '../store/uiStore';
 import { UploadCloud, X, FileText, Image as ImageIcon, Loader2, AlertTriangle } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 const HIDE_BUDGET_WARNING_KEY = 'hideBudgetWarning';
 
@@ -32,7 +33,7 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
     title: '',
     description: '',
     amount: '',
-    expense_date: new Date().toISOString().split('T')[0],
+    expense_date: toLocalDate(),
     vendor_name: '',
     payment_method: 'cash',
     status: 'pending',
@@ -61,7 +62,7 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
             title: initialExpense.title || '',
             description: initialExpense.description || '',
             amount: initialExpense.amount || '',
-            expense_date: initialExpense.expense_date || new Date().toISOString().split('T')[0],
+            expense_date: initialExpense.expense_date || toLocalDate(),
             vendor_name: initialExpense.vendor_name || '',
             payment_method: initialExpense.payment_method || 'cash',
             status: initialExpense.status || 'pending',

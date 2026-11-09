@@ -20,6 +20,7 @@ import {
   FileText,
   Key,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function AuditLogs() {
   const { user } = useAuthStore();
@@ -85,17 +86,17 @@ export function AuditLogs() {
   };
 
   const setDatePreset = (preset) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalDate();
     if (preset === 'today') {
       setFilters((prev) => ({ ...prev, startDate: today, endDate: today }));
     } else if (preset === '7days') {
       const d = new Date();
       d.setDate(d.getDate() - 7);
-      setFilters((prev) => ({ ...prev, startDate: d.toISOString().slice(0, 10), endDate: today }));
+      setFilters((prev) => ({ ...prev, startDate: toLocalDate(d), endDate: today }));
     } else if (preset === 'month') {
       const d = new Date();
       d.setDate(1);
-      setFilters((prev) => ({ ...prev, startDate: d.toISOString().slice(0, 10), endDate: today }));
+      setFilters((prev) => ({ ...prev, startDate: toLocalDate(d), endDate: today }));
     }
   };
 

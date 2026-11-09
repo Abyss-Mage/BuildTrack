@@ -96,8 +96,3 @@ export const deleteExpense = asyncHandler(async (req, res) => {
 
   res.status(200).json(result);
 });
-
-export const removeReceipt = asyncHandler(async (req, res) => {
-  const result = await ExpensesService.removeReceipt(req.params.id, req.params.receiptId, req.user);
-  res.status(200).json(result);
-});

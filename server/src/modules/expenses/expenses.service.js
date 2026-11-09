@@ -74,19 +74,4 @@ export class ExpensesService {
     await ExpensesRepository.delete(id);
     return { success: true, message: 'Expense deleted successfully' };
   }
-
-  static async removeReceipt(expenseId, receiptId, user) {
-    const existing = await this.getExpenseById(expenseId, user);
-
-    if (user.role !== 'admin' && existing.submitted_by !== user.id) {
-      throw ApiError.forbidden('You can only modify receipts on your own expenses.');
-    }
-
-    if (user.role !== 'admin' && !['draft', 'rejected'].includes(existing.status)) {
-      throw ApiError.badRequest('Cannot remove receipts from submitted expenses.');
-    }
-
-    await ExpensesRepository.deleteReceipt(receiptId);
-    return { success: true, message: 'Receipt removed' };
-  }
 }

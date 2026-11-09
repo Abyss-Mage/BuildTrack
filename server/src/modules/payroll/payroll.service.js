@@ -52,6 +52,10 @@ export class PayrollService {
     // The period must be unique per employee, so a free-text label is always qualified by its dates
     const range = `${data.start_date} to ${data.end_date}`;
     const label = data.payroll_period?.trim();
+    // The column holds 50 characters and the qualified form adds 27
+    if (label && label !== range && label.length > 23) {
+      throw ApiError.badRequest('Period label must be 23 characters or fewer');
+    }
     const period = label && label !== range ? `${label} (${range})` : range;
 
     data.payroll_period = period;

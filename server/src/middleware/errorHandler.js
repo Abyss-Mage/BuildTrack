@@ -28,7 +28,10 @@ export function errorHandler(err, req, res, next) {
   } else if (err.name === 'TokenExpiredError') {
     statusCode = 401;
     message = 'Authentication token expired. Please login again.';
-  } else {
+  } else if (err.name === 'MulterError') {
+    statusCode = 400;
+    message = err.message;
+  } else if (env.NODE_ENV === 'development') {
     message = err.message || message;
   }
 

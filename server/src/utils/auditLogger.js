@@ -7,14 +7,8 @@ import db from '../config/database.js';
 export async function logAudit(req, { action, entityType, entityId = null, details = null }) {
   try {
     const user = req?.user || null;
-    let ip = '127.0.0.1';
-    if (req?.headers) {
-      ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '127.0.0.1';
-      if (typeof ip === 'string' && ip.includes(',')) {
-        ip = ip.split(',')[0].trim();
-      }
-    }
-
+    // Capped to the column size: an over-long value would make the insert fail and lose the entry
+    const ip = (req?.ip || '127.0.0.1').slice(0, 45);
     const userAgent = req?.headers?.['user-agent'] || null;
     const detailsStr = details
       ? typeof details === 'object'

@@ -27,12 +27,13 @@ export const createUser = asyncHandler(async (req, res) => {
 
 export const updateUser = asyncHandler(async (req, res) => {
   const user = await UsersService.updateUser(req.params.id, req.body);
+  const { password, ...changes } = req.body;
 
   await logAudit(req, {
     action: 'USER_UPDATE',
     entityType: 'user',
     entityId: user.id,
-    details: req.body,
+    details: { ...changes, password_changed: Boolean(password) },
   });
 
   res.status(200).json({ success: true, message: 'User updated successfully', data: user });
