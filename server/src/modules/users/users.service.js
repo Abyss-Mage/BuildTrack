@@ -8,7 +8,7 @@ export class UsersService {
       return UsersRepository.findAll(filters);
     }
     // Everyone else only needs names for filter dropdowns
-    const users = await UsersRepository.findAll();
+    const users = await UsersRepository.findAll({ is_active: filters.is_active });
     return users.map(({ id, name, role }) => ({ id, name, role }));
   }
 

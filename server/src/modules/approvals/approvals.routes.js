@@ -7,8 +7,8 @@ const router = Router();
 
 router.use(auth);
 
-router.get('/pending', authorize('admin', 'project_manager', 'accountant'), getPendingQueue);
-router.post('/:expenseId/approve', authorize('admin', 'project_manager'), approveExpense);
-router.post('/:expenseId/reject', authorize('admin', 'project_manager', 'accountant'), rejectExpense);
+router.get('/pending', authorize('admin', 'accountant'), getPendingQueue);
+router.post('/:expenseId/approve', authorize('admin', 'accountant'), approveExpense);
+router.post('/:expenseId/reject', authorize('admin', 'accountant'), rejectExpense);
 
 export default router;

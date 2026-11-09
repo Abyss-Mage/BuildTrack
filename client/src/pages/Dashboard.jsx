@@ -192,7 +192,7 @@ export function Dashboard() {
             </button>
           )}
 
-          {['admin', 'project_manager', 'accountant'].includes(user?.role) && (
+          {['admin', 'accountant'].includes(user?.role) && (
             <button
               onClick={() => navigate('/approvals')}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-medium text-xs sm:text-sm border border-slate-700 transition-colors flex items-center gap-2"
@@ -321,6 +321,20 @@ export function Dashboard() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Advance balance: only entries actually submitted reduce it */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: 'Total Advance Allocated', value: data.advances?.totalAllocated, tone: 'text-slate-900' },
+          { label: 'Total Expenses Submitted', value: data.advances?.totalSubmitted, tone: 'text-amber-600' },
+          { label: 'Remaining Available Balance', value: data.advances?.remaining, tone: 'text-emerald-600' },
+        ].map((card) => (
+          <div key={card.label} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">{card.label}</span>
+            <span className={`text-2xl font-black mt-1 block ${card.tone}`}>{formatCurrency(card.value)}</span>
+          </div>
+        ))}
       </div>
 
       {/* KPI Cards Grid */}

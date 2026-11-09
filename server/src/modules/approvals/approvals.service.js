@@ -17,13 +17,13 @@ export class ApprovalsService {
       throw ApiError.badRequest(`Cannot approve expense in '${expense.status}' status. Only pending expenses can be approved.`);
     }
 
-    // Role check: PM or Admin
-    if (!['admin', 'project_manager'].includes(user.role)) {
-      throw ApiError.forbidden('Only Project Managers or Admins can approve pending expenses.');
+    // Role check: Accountant or Admin
+    if (!['admin', 'accountant'].includes(user.role)) {
+      throw ApiError.forbidden('Only Accountants or Admins can approve pending expenses.');
     }
 
     if (user.role !== 'admin' && expense.submitted_by === user.id) {
-      throw ApiError.forbidden('You cannot approve your own expense. Another manager or an Admin must approve it.');
+      throw ApiError.forbidden('You cannot approve your own expense. A Super Admin must approve it.');
     }
 
     // Per-Account Expenditure Approval Limit Enforcement
@@ -51,12 +51,18 @@ export class ApprovalsService {
       }
     }
 
+    const now = istNow();
+    // The money for an advance-funded expense was already handed over, so it must never reach the payout queue
+    const nextStep = expense.advance_id
+      ? { status: 'processed', processed_by: user.id, processed_at: now }
+      : { status: 'approved' };
+
     // Update expense status & record approver identity directly
     await ExpensesRepository.update(expenseId, {
-      status: 'approved',
+      ...nextStep,
       rejection_reason: null,
       approved_by: user.id,
-      approved_at: istNow(),
+      approved_at: now,
       approval_comments: comments || null,
     }, [], 'pending');
 
@@ -78,8 +84,8 @@ export class ApprovalsService {
       throw ApiError.badRequest('Rejection reason is required.');
     }
 
-    // Role check: PM, Admin, Accountant
-    if (!['admin', 'project_manager', 'accountant'].includes(user.role)) {
+    // Role check: Admin, Accountant
+    if (!['admin', 'accountant'].includes(user.role)) {
       throw ApiError.forbidden('You do not have permission to reject this expense.');
     }
 

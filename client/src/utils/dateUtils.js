@@ -7,6 +7,22 @@ export function toLocalDate(date = new Date()) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
 
+export const PERIOD_TYPES = [
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'fortnightly', label: 'Fortnightly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'custom', label: 'Custom Date Range' },
+];
+
+/** Suggested last day of a period; custom ranges are left for the user to pick. */
+export function periodEndDate(type, startDate) {
+  if (!startDate || type === 'custom') return '';
+  const start = new Date(`${startDate}T00:00:00`);
+  if (type === 'monthly') return toLocalDate(new Date(start.getFullYear(), start.getMonth() + 1, 0));
+  start.setDate(start.getDate() + (type === 'weekly' ? 6 : 13));
+  return toLocalDate(start);
+}
+
 export function getISOWeekDetails(dateInput = new Date()) {
   const d = new Date(dateInput);
   if (isNaN(d.getTime())) return getISOWeekDetails(new Date());

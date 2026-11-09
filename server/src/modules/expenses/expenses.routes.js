@@ -9,6 +9,7 @@ import {
 } from './expenses.controller.js';
 import { createExpenseSchema, updateExpenseSchema } from './expenses.validation.js';
 import { auth } from '../../middleware/auth.js';
+import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
 import { uploadMiddleware } from '../../middleware/upload.js';
 
@@ -21,6 +22,7 @@ router.get('/:id', getExpenseById);
 
 router.post(
   '/',
+  authorize('admin', 'site_in_charge'),
   uploadMiddleware.array('receipts', 5),
   validate(createExpenseSchema),
   createExpense

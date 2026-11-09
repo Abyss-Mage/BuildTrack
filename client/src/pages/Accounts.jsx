@@ -28,8 +28,7 @@ export function Accounts() {
   const { user } = useAuthStore();
   const { showNotification } = useUiStore();
 
-  const canDisburse = ['admin', 'accountant'].includes(user?.role);
-  const [activeTab, setActiveTab] = useState(canDisburse ? 'queue' : 'settlements'); // 'queue' | 'settlements'
+  const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'settlements'
   const [loading, setLoading] = useState(true);
 
   // Data
@@ -87,7 +86,7 @@ export function Accounts() {
 
       const [sumRes, queueRes, settRes] = await Promise.all([
         api.get('/accounts/summary'),
-        canDisburse ? api.get('/accounts/queue', { params }) : Promise.resolve({ data: { data: [] } }),
+        api.get('/accounts/queue', { params }),
         api.get('/accounts/settlements', { params }),
       ]);
 
@@ -336,19 +335,17 @@ export function Accounts() {
 
       {/* Navigation Tabs */}
       <div className="flex border-b border-slate-200 gap-2">
-        {canDisburse && (
-          <button
-            onClick={() => setActiveTab('queue')}
-            className={`pb-3 px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === 'queue'
-                ? 'border-brand-500 text-slate-950 font-black'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Clock className="w-4 h-4" />
-            <span>Pending Payout Queue ({queue.length})</span>
-          </button>
-        )}
+        <button
+          onClick={() => setActiveTab('queue')}
+          className={`pb-3 px-4 font-bold text-xs sm:text-sm border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'queue'
+              ? 'border-brand-500 text-slate-950 font-black'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Pending Payout Queue ({queue.length})</span>
+        </button>
 
         <button
           onClick={() => setActiveTab('settlements')}
@@ -532,7 +529,7 @@ export function Accounts() {
                             <div className="flex flex-col">
                               <span className="font-semibold text-emerald-800 text-xs">{item.approver_name}</span>
                               <span className="text-[10px] text-slate-400 capitalize">
-                                {item.approver_role?.replace('_', ' ')}
+                                {item.approver_role?.replace(/_/g, ' ')}
                               </span>
                             </div>
                           ) : (
@@ -615,7 +612,7 @@ export function Accounts() {
                           {item.approver_name || 'Manager'}
                         </span>
                         <span className="text-[10px] text-slate-400 capitalize">
-                          {item.approver_role?.replace('_', ' ') || 'Approver'}
+                          {item.approver_role?.replace(/_/g, ' ') || 'Approver'}
                         </span>
                       </td>
 

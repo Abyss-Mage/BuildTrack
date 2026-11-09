@@ -433,7 +433,7 @@ export function Reports() {
                 <option value="">All Personnel</option>
                 {usersList.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} ({u.role.replace('_', ' ')})
+                    {u.name} ({u.role.replace(/_/g, ' ')})
                   </option>
                 ))}
               </select>

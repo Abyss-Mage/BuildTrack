@@ -317,7 +317,7 @@ export function AuditLogs() {
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-900 block">{log.user_name || 'System'}</span>
                         <span className="text-[10px] text-slate-400 capitalize">
-                          {log.user_role?.replace('_', ' ') || 'Internal'}
+                          {log.user_role?.replace(/_/g, ' ') || 'Internal'}
                         </span>
                       </td>
 
@@ -398,7 +398,7 @@ export function AuditLogs() {
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase">System Role</span>
                 <span className="font-semibold text-slate-800 capitalize">
-                  {selectedLog.user_role?.replace('_', ' ')}
+                  {selectedLog.user_role?.replace(/_/g, ' ')}
                 </span>
               </div>
               <div>

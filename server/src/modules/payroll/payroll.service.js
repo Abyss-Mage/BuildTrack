@@ -20,7 +20,7 @@ function assertChangeable(record, user) {
   }
 }
 
-function cleanPhoneNumber(phone) {
+export function cleanPhoneNumber(phone) {
   if (!phone) return null;
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length === 10) {

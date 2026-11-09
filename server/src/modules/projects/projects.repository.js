@@ -1,21 +1,25 @@
 import db from '../../config/database.js';
+import { siteScope } from '../../utils/siteScope.js';
+
+const ASSIGNED_IDS = '(SELECT GROUP_CONCAT(pa.user_id) FROM project_assignments pa WHERE pa.project_id = p.id) as site_in_charge_ids';
 
 export class ProjectsRepository {
   /**
-   * Everyone can see all projects in the company.
+   * Site In-Charges see only their assigned sites; other roles see all.
    * Multi-criteria filtering supported (status, search, budgetMin, budgetMax, utilization, sortBy).
    */
   static async findAll(user, filters = {}) {
     let sql = `
-      SELECT 
+      SELECT
         p.*,
         u.name as creator_name,
+        ${ASSIGNED_IDS},
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent,
         COALESCE(COUNT(DISTINCT e.id), 0) as expense_count
       FROM projects p
       LEFT JOIN users u ON p.created_by = u.id
       LEFT JOIN expenses e ON p.id = e.project_id
-      WHERE 1=1
+      WHERE 1=1 ${siteScope(user, 'p.id')}
     `;
 
     const params = [];
@@ -69,9 +73,10 @@ export class ProjectsRepository {
 
   static async findById(id) {
     return db.getOne(
-      `SELECT 
+      `SELECT
         p.*,
         u.name as creator_name,
+        ${ASSIGNED_IDS},
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent,
         COALESCE(COUNT(DISTINCT e.id), 0) as expense_count
       FROM projects p
@@ -87,10 +92,20 @@ export class ProjectsRepository {
     return db.getOne('SELECT * FROM projects WHERE code = ?', [code]);
   }
 
+  static async setSiteInCharges(projectId, userIds) {
+    await db.execute('DELETE FROM project_assignments WHERE project_id = ?', [projectId]);
+    for (const userId of new Set(userIds)) {
+      await db.execute(
+        "INSERT INTO project_assignments (project_id, user_id) SELECT ?, id FROM users WHERE id = ? AND role = 'site_in_charge'",
+        [projectId, userId]
+      );
+    }
+  }
+
   static async create(data, createdById) {
     const id = await db.insert(
-      `INSERT INTO projects (name, code, location, description, total_budget, status, start_date, end_date, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO projects (name, code, location, description, total_budget, status, start_date, end_date, po_number, po_date, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.name.trim(),
         data.code.trim().toUpperCase(),
@@ -100,10 +115,13 @@ export class ProjectsRepository {
         data.status || 'active',
         data.start_date || null,
         data.end_date || null,
+        data.po_number?.trim() || null,
+        data.po_date || null,
         createdById,
       ]
     );
 
+    if (data.site_in_charge_ids) await this.setSiteInCharges(id, data.site_in_charge_ids);
     return this.findById(id);
   }
 
@@ -111,7 +129,7 @@ export class ProjectsRepository {
     const fields = [];
     const values = [];
 
-    const allowed = ['name', 'code', 'location', 'description', 'total_budget', 'status', 'start_date', 'end_date'];
+    const allowed = ['name', 'code', 'location', 'description', 'total_budget', 'status', 'start_date', 'end_date', 'po_number', 'po_date'];
     for (const key of allowed) {
       if (data[key] !== undefined) {
         fields.push(`${key} = ?`);
@@ -124,6 +142,7 @@ export class ProjectsRepository {
       await db.execute(`UPDATE projects SET ${fields.join(', ')} WHERE id = ?`, values);
     }
 
+    if (data.site_in_charge_ids) await this.setSiteInCharges(id, data.site_in_charge_ids);
     return this.findById(id);
   }
 }

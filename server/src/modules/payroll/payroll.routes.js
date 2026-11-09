@@ -8,19 +8,18 @@ import { createPayrollSchema, updatePayrollSchema, payPayrollSchema } from './pa
 const router = Router();
 
 router.use(auth);
+router.use(authorize('admin', 'accountant'));
 
-// All logged in users can view their payroll slips
 router.get('/', PayrollController.getAll);
-router.get('/summary', authorize('admin', 'accountant'), PayrollController.getSummary);
-router.get('/broadcast-list', authorize('admin', 'accountant'), PayrollController.getMonthlyBroadcast);
-router.get('/:id/whatsapp', authorize('admin', 'accountant'), PayrollController.getWhatsAppPayload);
+router.get('/summary', PayrollController.getSummary);
+router.get('/broadcast-list', PayrollController.getMonthlyBroadcast);
+router.get('/:id/whatsapp', PayrollController.getWhatsAppPayload);
 router.get('/:id', PayrollController.getById);
 
-// Management restricted to Accountant and Super Admin
-router.post('/', authorize('admin', 'accountant'), validate(createPayrollSchema), PayrollController.create);
-router.put('/:id', authorize('admin', 'accountant'), validate(updatePayrollSchema), PayrollController.update);
-router.post('/:id/pay', authorize('admin', 'accountant'), validate(payPayrollSchema), PayrollController.markAsPaid);
-router.delete('/:id', authorize('admin', 'accountant'), PayrollController.delete);
-router.post('/record-broadcast', authorize('admin', 'accountant'), PayrollController.recordBroadcastSent);
+router.post('/', validate(createPayrollSchema), PayrollController.create);
+router.put('/:id', validate(updatePayrollSchema), PayrollController.update);
+router.post('/:id/pay', validate(payPayrollSchema), PayrollController.markAsPaid);
+router.delete('/:id', PayrollController.delete);
+router.post('/record-broadcast', PayrollController.recordBroadcastSent);
 
 export default router;

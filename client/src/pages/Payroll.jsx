@@ -621,7 +621,7 @@ export function Payroll() {
                 <option value="">Select Employee</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.role.replace('_', ' ')})
+                    {emp.name} ({emp.role.replace(/_/g, ' ')})
                   </option>
                 ))}
               </select>
@@ -926,7 +926,7 @@ export function Payroll() {
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">Designation</span>
-                  <span className="font-bold text-slate-900 capitalize">{selectedPayslip.employee_role?.replace('_', ' ')}</span>
+                  <span className="font-bold text-slate-900 capitalize">{selectedPayslip.employee_role?.replace(/_/g, ' ')}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">Contact Phone</span>

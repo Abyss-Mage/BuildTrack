@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import Modal from '../components/ui/Modal';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -19,11 +19,24 @@ import {
   XCircle,
 } from 'lucide-react';
 
-export function ExpenseDetailModal({ isOpen, onClose, expense, onActionSuccess }) {
+export function ExpenseDetailModal({ isOpen, onClose, expense: listRow, onActionSuccess }) {
   const { user } = useAuthStore();
   const { showNotification } = useUiStore();
   const [activeReceipt, setActiveReceipt] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [details, setDetails] = useState(null);
+
+  // List rows carry only a receipt count; the files and approval history come from the full record
+  useEffect(() => {
+    if (!isOpen || !listRow?.id) return;
+    setDetails(null);
+    api
+      .get(`/expenses/${listRow.id}`)
+      .then((res) => setDetails(res.data.data))
+      .catch((err) => showNotification(err.response?.data?.message || 'Failed to load attachments', 'error'));
+  }, [isOpen, listRow?.id]);
+
+  const expense = details || listRow;
 
   if (!expense) return null;
 
@@ -152,10 +165,12 @@ export function ExpenseDetailModal({ isOpen, onClose, expense, onActionSuccess }
           {/* Attached Receipts Gallery */}
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
-              Attached Receipts & Bills ({expense.receipts?.length || 0})
+              Attached Receipts & Bills ({expense.receipts?.length ?? expense.receipt_count ?? 0})
             </span>
 
-            {(!expense.receipts || expense.receipts.length === 0) ? (
+            {!details ? (
+              <p className="text-xs text-slate-400 italic">Loading attachments...</p>
+            ) : expense.receipts.length === 0 ? (
               <p className="text-xs text-slate-400 italic">No receipt attachments uploaded.</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

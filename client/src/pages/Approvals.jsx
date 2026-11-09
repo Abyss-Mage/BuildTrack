@@ -21,7 +21,6 @@ import {
   Calendar,
   Layers,
   Loader2,
-  AlertTriangle,
   RotateCcw,
   Shield,
   AlertCircle,
@@ -55,7 +54,6 @@ export function Approvals() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const isAccountant = user?.role === 'accountant';
-  const isPM = user?.role === 'project_manager';
   const isAdmin = user?.role === 'admin';
 
   const loadProjects = async () => {
@@ -188,9 +186,7 @@ export function Approvals() {
             <span>Expense Approval & Settlement Queue</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            {isAccountant
-              ? 'Review approved vouchers for payment processing and banking reconciliation.'
-              : 'Review submitted site vouchers from engineers against deliveries, receipts, and role expenditure caps.'}
+            Review submitted site vouchers against their bills, then approve or reject them.
           </p>
         </div>
 
@@ -345,12 +341,6 @@ export function Approvals() {
 
             const cannotApproveDueToLimit = hasExceededAccountLimit || isUnauthorizedAccount;
 
-            // Per-project role limit (set on the project) that the voucher exceeds
-            const hasExceededRoleLimit =
-              item.role_max_limit !== null &&
-              item.role_max_limit !== undefined &&
-              Number(item.amount) > Number(item.role_max_limit);
-
             return (
               <div
                 key={item.id}
@@ -367,21 +357,7 @@ export function Approvals() {
                     {/* Show Approver info if already approved */}
                     {item.approver_name && (
                       <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        Approved by: {item.approver_name} ({item.approver_role?.replace('_', ' ') || 'PM'})
-                      </span>
-                    )}
-
-                    {/* Expenditure Allocation Limit Badge */}
-                    {item.status === 'pending' && hasExceededRoleLimit && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                        <AlertTriangle className="w-3 h-3 text-amber-600" />
-                        Exceeds PM limit (₹{Number(item.role_max_limit).toLocaleString('en-IN')}) - Requires Admin Approval
-                      </span>
-                    )}
-
-                    {item.status === 'pending' && !hasExceededRoleLimit && item.role_max_limit && (
-                      <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                        Within Role Limit (Max ₹{Number(item.role_max_limit).toLocaleString('en-IN')})
+                        Approved by: {item.approver_name} ({item.approver_role?.replace(/_/g, ' ')})
                       </span>
                     )}
 
@@ -433,7 +409,7 @@ export function Approvals() {
 
                   <div className="flex items-center gap-2">
                     {/* If item is pending: PM/Admin can Approve or Reject */}
-                    {item.status === 'pending' && (isPM || isAdmin) && (
+                    {item.status === 'pending' && (isAccountant || isAdmin) && (
                       <>
                         <button
                           onClick={(e) => handleOpenReject(item, e)}

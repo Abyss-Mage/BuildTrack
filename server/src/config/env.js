@@ -37,6 +37,12 @@ export const env = {
   MAX_FILE_SIZE_MB: Number(process.env.MAX_FILE_SIZE_MB) || 10,
   UPLOAD_DIR: process.env.UPLOAD_DIR || 'uploads/receipts',
 
+  // WhatsApp Business Cloud API (bulk wage notifications)
+  WHATSAPP_TOKEN: process.env.WHATSAPP_TOKEN || '',
+  WHATSAPP_PHONE_NUMBER_ID: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
+  WHATSAPP_TEMPLATE_NAME: process.env.WHATSAPP_TEMPLATE_NAME || '',
+  WHATSAPP_TEMPLATE_LANG: process.env.WHATSAPP_TEMPLATE_LANG || 'en',
+
   // Client URL for CORS
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
 };

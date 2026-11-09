@@ -41,7 +41,7 @@ export function Users() {
     name: '',
     email: '',
     password: '',
-    role: 'site_engineer',
+    role: 'site_in_charge',
     phone: '',
     approval_limit: '',
   });
@@ -52,7 +52,7 @@ export function Users() {
   const [editFormData, setEditFormData] = useState({
     name: '',
     email: '',
-    role: 'site_engineer',
+    role: 'site_in_charge',
     phone: '',
     approval_limit: '',
     is_active: 1,
@@ -125,7 +125,7 @@ export function Users() {
         name: '',
         email: '',
         password: '',
-        role: 'site_engineer',
+        role: 'site_in_charge',
         phone: '',
         approval_limit: '',
       });
@@ -142,7 +142,7 @@ export function Users() {
     setEditFormData({
       name: user.name || '',
       email: user.email || '',
-      role: user.role || 'site_engineer',
+      role: user.role || 'site_in_charge',
       phone: user.phone || '',
       approval_limit: user.approval_limit !== null && user.approval_limit !== undefined ? String(user.approval_limit) : '',
       is_active: user.is_active ? 1 : 0,
@@ -234,8 +234,7 @@ export function Users() {
             >
               <option value="">All Roles</option>
               <option value="admin">Admin / Owner</option>
-              <option value="project_manager">Project Manager</option>
-              <option value="site_engineer">Site Engineer</option>
+              <option value="site_in_charge">Site In-Charge</option>
               <option value="accountant">Accountant / Finance</option>
             </select>
           </div>
@@ -340,7 +339,7 @@ export function Users() {
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 capitalize border border-slate-200">
                         <Shield className="w-3 h-3 text-brand-600" />
-                        {u.role.replace('_', ' ')}
+                        {u.role.replace(/_/g, ' ')}
                       </span>
                     </td>
 
@@ -484,9 +483,8 @@ export function Users() {
                 onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value })}
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               >
-                <option value="site_engineer">Site Engineer (Field Submissions)</option>
-                <option value="project_manager">Project Manager (Expenditure Approvals)</option>
-                <option value="accountant">Accountant / Finance (Payouts & Payroll)</option>
+                <option value="site_in_charge">Site In-Charge (Assigned Site Expenses)</option>
+                <option value="accountant">CA / Accountant (Accounts & Payroll)</option>
                 <option value="admin">Super Admin (Full Company Access)</option>
               </select>
             </div>
@@ -590,9 +588,8 @@ export function Users() {
                 onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               >
-                <option value="site_engineer">Site Engineer (Field Submissions)</option>
-                <option value="project_manager">Project Manager (Expenditure Approvals)</option>
-                <option value="accountant">Accountant / Finance (Payouts & Payroll)</option>
+                <option value="site_in_charge">Site In-Charge (Assigned Site Expenses)</option>
+                <option value="accountant">CA / Accountant (Accounts & Payroll)</option>
                 <option value="admin">Super Admin (Full Company Access)</option>
               </select>
             </div>

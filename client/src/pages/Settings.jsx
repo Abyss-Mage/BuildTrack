@@ -97,7 +97,7 @@ export function Settings() {
             <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-brand-600" />
               <span className="text-xs font-semibold text-slate-700 capitalize">
-                {user?.role?.replace('_', ' ')}
+                {user?.role?.replace(/_/g, ' ')}
               </span>
             </div>
           </div>

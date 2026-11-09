@@ -1,5 +1,6 @@
 import db from '../../config/database.js';
 import { istNow } from '../../utils/time.js';
+import { siteScope } from '../../utils/siteScope.js';
 
 // "N months ago" in the active database dialect (the app runs on SQLite locally and MySQL on Hostinger)
 function monthsAgo(months) {
@@ -25,7 +26,7 @@ function buildDateRange(filters) {
 export class DashboardService {
   static async getSummary(user, filters = {}) {
     let params = [];
-    let projectScope = '';
+    let projectScope = siteScope(user, 'e.project_id');
 
     if (filters.projectId) {
       projectScope += ` AND e.project_id = ?`;
@@ -87,7 +88,7 @@ export class DashboardService {
     );
 
     // Active projects count
-    let activeProjectsSql = `SELECT COUNT(*) as active_count FROM projects WHERE status = 'active'`;
+    let activeProjectsSql = `SELECT COUNT(*) as active_count FROM projects WHERE status = 'active'${siteScope(user, 'id')}`;
     let activeParams = [];
     if (filters.projectId) {
       activeProjectsSql += ` AND id = ?`;
@@ -109,7 +110,7 @@ export class DashboardService {
 
   static async getCategoryBreakdown(user, filters = {}) {
     let params = [];
-    let projectScope = '';
+    let projectScope = siteScope(user, 'e.project_id');
 
     if (filters.projectId) {
       projectScope += ` AND e.project_id = ?`;
@@ -165,7 +166,7 @@ export class DashboardService {
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent
       FROM projects p
       LEFT JOIN expenses e ON p.id = e.project_id
-      WHERE 1=1
+      WHERE 1=1 ${siteScope(user, 'p.id')}
     `;
 
     const params = [];
@@ -190,7 +191,7 @@ export class DashboardService {
 
   static async getMonthlyTrends(user, filters = {}) {
     let params = [];
-    let projectScope = '';
+    let projectScope = siteScope(user, 'e.project_id');
 
     if (filters.projectId) {
       projectScope += ` AND e.project_id = ?`;
@@ -221,7 +222,7 @@ export class DashboardService {
 
   static async getRecentExpenses(user, filters = {}) {
     let params = [];
-    let projectScope = '';
+    let projectScope = siteScope(user, 'e.project_id');
 
     if (filters.projectId) {
       projectScope += ` AND e.project_id = ?`;

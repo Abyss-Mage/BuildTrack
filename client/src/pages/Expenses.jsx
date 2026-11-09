@@ -55,7 +55,7 @@ export function Expenses() {
   const [editingExpense, setEditingExpense] = useState(null);
   const [selectedExpense, setSelectedExpense] = useState(null);
 
-  const canCreate = ['admin', 'project_manager', 'site_engineer'].includes(user?.role);
+  const canCreate = ['admin', 'site_in_charge'].includes(user?.role);
 
   const loadFilterOptions = async () => {
     try {
@@ -378,7 +378,7 @@ export function Expenses() {
                 <option value="">All Team Members</option>
                 {usersList.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} ({u.role.replace('_', ' ')})
+                    {u.name} ({u.role.replace(/_/g, ' ')})
                   </option>
                 ))}
               </select>

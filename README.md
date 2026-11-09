@@ -31,10 +31,15 @@
   - **Excel Export**: Generates formatted XLSX spreadsheets with styled headers and currency formats using ExcelJS.
 
 ### 4. 👥 Role-Based Access Control (RBAC)
-- **Admin / Company Owner**: Full access across all sites, teams, settings, and approvals.
-- **Project Manager**: Oversees assigned sites, reviews expenditures, and approves vouchers.
-- **Site Engineer / Foreman**: Submits site vouchers and bills from the field.
-- **Accountant / Finance**: Reconciles payments, manages ledgers, and generates PDF/Excel reports.
+- **Super Admin**: Full access across all sites, teams, settings, and approvals. Approves advances.
+- **Site In-Charge**: Works only on assigned sites. Submits expenses against approved advances and raises purchase requisitions.
+- **CA / Accountant**: Allocates advances, approves expenses, manages payouts, payroll and reports.
+
+### 5. 💰 Advances, Purchase Requisitions & Excel Wages
+- **Advances**: Money allocated to a Site In-Charge for a period. The balance falls only when an expense is submitted against it, and an expense larger than the balance is refused.
+- **Purchase Requisitions**: Multi-item PRs per site, laid out like the company's PR sheet, with auto-generated PR numbers.
+- **Excel Wage Sheets**: Upload the wage sheet for a site and period. Values are stored exactly as Excel calculated them.
+- **WhatsApp**: Bulk wage notifications through the WhatsApp Business Cloud API. Set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_TEMPLATE_NAME`. The approved template needs 4 body variables, in order: employee name, period, site, net amount.
 
 ---
 

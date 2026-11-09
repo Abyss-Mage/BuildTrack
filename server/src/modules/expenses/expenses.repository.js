@@ -1,6 +1,7 @@
 import db from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { istNow } from '../../utils/time.js';
+import { siteScope } from '../../utils/siteScope.js';
 
 export class ExpensesRepository {
   /**
@@ -47,14 +48,17 @@ export class ExpensesRepository {
       JOIN users u ON e.submitted_by = u.id
       LEFT JOIN users app ON e.approved_by = app.id
       LEFT JOIN users proc ON e.processed_by = proc.id
-      WHERE 1=1
+      WHERE 1=1 ${siteScope(user, 'e.project_id')}
     `;
 
     const params = [];
 
-    // Note: Project member allocation removed. Everyone can see every project.
-
     // Filters
+    if (filters.advanceId) {
+      sql += ' AND e.advance_id = ?';
+      params.push(Number(filters.advanceId));
+    }
+
     if (filters.projectId) {
       sql += ' AND e.project_id = ?';
       params.push(Number(filters.projectId));
@@ -191,8 +195,8 @@ export class ExpensesRepository {
         expenseId = await db.insert(
           `INSERT INTO expenses (
             reference_no, project_id, category_id, submitted_by, title, description,
-            amount, expense_date, vendor_name, payment_method, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            amount, expense_date, vendor_name, payment_method, status, advance_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             await this.generateReferenceNo(),
             data.project_id,
@@ -205,6 +209,7 @@ export class ExpensesRepository {
             data.vendor_name || null,
             data.payment_method || 'cash',
             data.status || 'pending',
+            data.advance_id || null,
           ]
         );
       } catch (err) {
@@ -249,6 +254,7 @@ export class ExpensesRepository {
       'processed_by',
       'processed_at',
       'payment_reference',
+      'advance_id',
     ];
 
     for (const key of allowed) {

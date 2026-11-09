@@ -35,6 +35,15 @@ export const uploadMiddleware = multer({
   fileFilter,
 });
 
+export const excelUpload = multer({
+  storage,
+  limits: { fileSize: env.MAX_FILE_SIZE_MB * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (file.originalname.toLowerCase().endsWith('.xlsx')) cb(null, true);
+    else cb(ApiError.badRequest('Upload an Excel .xlsx file. Older .xls files must be saved as .xlsx first.'), false);
+  },
+});
+
 /**
  * Process uploaded files:
  * Compresses images with Sharp, preserves PDFs, writes to dated folders.
