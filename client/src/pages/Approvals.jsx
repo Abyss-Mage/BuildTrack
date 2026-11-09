@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
@@ -137,9 +138,7 @@ export function Approvals() {
     e.stopPropagation();
     try {
       setActionLoading(true);
-      await api.post(`/approvals/${expenseId}/approve`, {
-        comments: 'Verified against site delivery challan & receipts',
-      });
+      await api.post(`/approvals/${expenseId}/approve`, {});
       showNotification('Expense successfully approved!');
       loadQueue();
     } catch (err) {
@@ -172,22 +171,6 @@ export function Approvals() {
       loadQueue();
     } catch (err) {
       showNotification(err.response?.data?.message || 'Rejection failed', 'error');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleProcess = async (expenseId, e) => {
-    e.stopPropagation();
-    try {
-      setActionLoading(true);
-      await api.post(`/approvals/${expenseId}/process`, {
-        comments: 'Payment disbursed and reconciled in books',
-      });
-      showNotification('Voucher marked as Processed & Paid');
-      loadQueue();
-    } catch (err) {
-      showNotification(err.response?.data?.message || 'Processing failed', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -477,16 +460,15 @@ export function Approvals() {
                       </>
                     )}
 
-                    {/* If item is approved: Accountant/Admin can Process payment */}
+                    {/* Approved vouchers are paid from Accounts, where the date and bank reference are recorded */}
                     {isApprovedForPayout && (isAccountant || isAdmin) && (
-                      <button
-                        onClick={(e) => handleProcess(item.id, e)}
-                        disabled={actionLoading}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95 disabled:opacity-50"
+                      <Link
+                        to="/accounts"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all active:scale-95"
                       >
                         <FileCheck className="w-4 h-4" />
-                        <span>Disburse & Reconcile</span>
-                      </button>
+                        <span>Disburse in Accounts</span>
+                      </Link>
                     )}
                   </div>
                 </div>

@@ -3,7 +3,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logAudit } from '../../utils/auditLogger.js';
 
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await UsersService.getAllUsers(req.query);
+  const users = await UsersService.getAllUsers(req.query, req.user);
   res.status(200).json({ success: true, data: users });
 });
 
@@ -26,7 +26,7 @@ export const createUser = asyncHandler(async (req, res) => {
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
-  const user = await UsersService.updateUser(req.params.id, req.body);
+  const user = await UsersService.updateUser(req.params.id, req.body, req.user);
   const { password, ...changes } = req.body;
 
   await logAudit(req, {

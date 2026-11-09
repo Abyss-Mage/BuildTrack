@@ -3,8 +3,13 @@ import { UsersRepository } from './users.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 
 export class UsersService {
-  static async getAllUsers(filters = {}) {
-    return UsersRepository.findAll(filters);
+  static async getAllUsers(filters = {}, user) {
+    if (['admin', 'accountant'].includes(user.role)) {
+      return UsersRepository.findAll(filters);
+    }
+    // Everyone else only needs names for filter dropdowns
+    const users = await UsersRepository.findAll();
+    return users.map(({ id, name, role }) => ({ id, name, role }));
   }
 
   static async getUserById(id) {
@@ -37,8 +42,12 @@ export class UsersService {
     });
   }
 
-  static async updateUser(id, updateData) {
+  static async updateUser(id, updateData, actor) {
     await this.getUserById(id);
+
+    if (Number(id) === actor.id && (updateData.is_active === 0 || (updateData.role && updateData.role !== actor.role))) {
+      throw ApiError.badRequest('You cannot deactivate your own account or change your own role.');
+    }
 
     const updates = { ...updateData };
     if (updates.password && updates.password.trim().length > 0) {

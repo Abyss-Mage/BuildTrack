@@ -188,11 +188,13 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
       if (initialExpense) {
         await api.put(`/expenses/${initialExpense.id}`, data, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 0, // Several photos on a weak site connection can take minutes
         });
         showNotification('Expense entry updated successfully');
       } else {
         await api.post('/expenses', data, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 0,
         });
         showNotification('Expense created and queued for review');
       }
@@ -379,7 +381,6 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
                 type="file"
                 multiple
                 accept="image/jpeg,image/png,image/webp,application/pdf"
-                capture="environment"
                 onChange={handleFileChange}
                 className="hidden"
               />

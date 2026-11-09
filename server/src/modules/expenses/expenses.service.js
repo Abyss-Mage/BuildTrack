@@ -1,5 +1,6 @@
 import { ExpensesRepository } from './expenses.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { removeReceiptFiles } from '../../middleware/upload.js';
 
 export class ExpensesService {
   static async getAllExpenses(filters, user) {
@@ -43,7 +44,7 @@ export class ExpensesService {
       data.rejection_reason = null;
     }
 
-    return ExpensesRepository.update(id, data, receipts);
+    return ExpensesRepository.update(id, data, receipts, existing.status);
   }
 
   static async submitExpense(id, user) {
@@ -57,7 +58,7 @@ export class ExpensesService {
       throw ApiError.badRequest(`Expense is already in '${existing.status}' status.`);
     }
 
-    return ExpensesRepository.update(id, { status: 'pending', rejection_reason: null });
+    return ExpensesRepository.update(id, { status: 'pending', rejection_reason: null }, [], existing.status);
   }
 
   static async deleteExpense(id, user) {
@@ -72,6 +73,7 @@ export class ExpensesService {
     }
 
     await ExpensesRepository.delete(id);
+    removeReceiptFiles(existing.receipts.map((r) => r.file_path));
     return { success: true, message: 'Expense deleted successfully' };
   }
 }

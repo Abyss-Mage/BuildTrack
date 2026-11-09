@@ -44,21 +44,3 @@ export const rejectExpense = asyncHandler(async (req, res) => {
 
   res.status(200).json({ success: true, message: 'Expense rejected', data: expense });
 });
-
-export const processExpense = asyncHandler(async (req, res) => {
-  const { comments } = req.body;
-  const expense = await ApprovalsService.processExpense(req.params.expenseId, req.user, comments);
-
-  await logAudit(req, {
-    action: 'EXPENSE_PAYOUT_PROCESSED',
-    entityType: 'expense',
-    entityId: expense.id,
-    details: {
-      reference_no: expense.reference_no,
-      amount: expense.amount,
-      comments: comments || null,
-    },
-  });
-
-  res.status(200).json({ success: true, message: 'Expense marked as processed', data: expense });
-});

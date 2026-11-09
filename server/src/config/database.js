@@ -41,7 +41,7 @@ if (activeClient === 'mysql' && env.DB_USER) {
 }
 
 if (activeClient === 'sqlite') {
-  const sqliteFile = path.join(dataDir, 'app.sqlite');
+  const sqliteFile = process.env.SQLITE_FILE || path.join(dataDir, 'app.sqlite'); // Tests use :memory:
   // Loaded lazily: node:sqlite requires Node 22.5+, and MySQL deployments must not depend on it
   const { DatabaseSync } = await import('node:sqlite');
   sqliteDb = new DatabaseSync(sqliteFile);

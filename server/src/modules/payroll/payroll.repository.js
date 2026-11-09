@@ -1,4 +1,5 @@
 import db from '../../config/database.js';
+import { istNow } from '../../utils/time.js';
 
 export class PayrollRepository {
   static async findAll(filters = {}) {
@@ -91,10 +92,10 @@ export class PayrollRepository {
     );
   }
 
-  static async findOverlapping(userId, startDate, endDate) {
+  static async findOverlapping(userId, startDate, endDate, excludeId = 0) {
     return db.getOne(
-      'SELECT * FROM payroll WHERE user_id = ? AND start_date <= ? AND end_date >= ?',
-      [userId, endDate, startDate]
+      'SELECT * FROM payroll WHERE user_id = ? AND start_date <= ? AND end_date >= ? AND id <> ?',
+      [userId, endDate, startDate, excludeId]
     );
   }
 
@@ -221,8 +222,7 @@ export class PayrollRepository {
   }
 
   static async markWhatsAppSent(id) {
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-    await db.execute('UPDATE payroll SET whatsapp_sent_at = ? WHERE id = ?', [now, id]);
+    await db.execute('UPDATE payroll SET whatsapp_sent_at = ? WHERE id = ?', [istNow(), id]);
   }
 
   static async delete(id) {

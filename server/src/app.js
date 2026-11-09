@@ -76,7 +76,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 5000, // Per IP, and a whole office shares one
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },

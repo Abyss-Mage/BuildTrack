@@ -1,4 +1,5 @@
 import db from '../../config/database.js';
+import { istNow } from '../../utils/time.js';
 
 // "N months ago" in the active database dialect (the app runs on SQLite locally and MySQL on Hostinger)
 function monthsAgo(months) {
@@ -45,8 +46,7 @@ export class DashboardService {
         [...params, ...dateParams]
       );
     } else {
-      const now = new Date();
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}%`;
+      const currentMonth = `${istNow().slice(0, 7)}%`;
       spendResult = await db.getOne(
         `SELECT COALESCE(SUM(e.amount), 0) as total_range
          FROM expenses e

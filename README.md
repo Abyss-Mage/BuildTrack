@@ -107,7 +107,7 @@ When the system is first initialized, the initial Super Admin account is provisi
 3. Configure the application settings:
    - **Node.js Version**: Select `20.x` or `22.x` (MySQL mode works on both; the SQLite fallback needs 22.5+)
    - **Application Root**: `/` (repository root)
-   - **Application Startup File**: `server/src/server.js`
+   - **Application Startup File**: `app.cjs`
    - **Install Command**: `npm install` (the root `postinstall` script installs `server/` and `client/` dependencies, including the Vite build tooling)
    - **Build Command**: `npm run build`
    - **Run Command**: `npm start`

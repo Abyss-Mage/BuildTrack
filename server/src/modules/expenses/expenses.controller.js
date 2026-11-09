@@ -1,5 +1,5 @@
 import { ExpensesService } from './expenses.service.js';
-import { processReceiptFiles } from '../../middleware/upload.js';
+import { processReceiptFiles, removeReceiptFiles } from '../../middleware/upload.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logAudit } from '../../utils/auditLogger.js';
 
@@ -19,7 +19,10 @@ export const createExpense = asyncHandler(async (req, res) => {
     receipts = await processReceiptFiles(req.files);
   }
 
-  const expense = await ExpensesService.createExpense(req.body, receipts, req.user);
+  const expense = await ExpensesService.createExpense(req.body, receipts, req.user).catch((err) => {
+    removeReceiptFiles(receipts.map((r) => r.filePath));
+    throw err;
+  });
 
   await logAudit(req, {
     action: 'EXPENSE_CREATE',
@@ -47,7 +50,10 @@ export const updateExpense = asyncHandler(async (req, res) => {
     receipts = await processReceiptFiles(req.files);
   }
 
-  const expense = await ExpensesService.updateExpense(req.params.id, req.body, receipts, req.user);
+  const expense = await ExpensesService.updateExpense(req.params.id, req.body, receipts, req.user).catch((err) => {
+    removeReceiptFiles(receipts.map((r) => r.filePath));
+    throw err;
+  });
 
   await logAudit(req, {
     action: 'EXPENSE_UPDATE',

@@ -578,8 +578,8 @@ export function Payroll() {
                           </button>
                         )}
 
-                        {/* Edit (finance only) */}
-                        {isFinanceOrAdmin && (
+                        {/* Edit (finance only; paid records are Admin only) */}
+                        {isFinanceOrAdmin && (item.status !== 'paid' || user?.role === 'admin') && (
                           <button
                             onClick={() => openEdit(item)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"

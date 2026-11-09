@@ -1,5 +1,24 @@
 import { PayrollRepository } from './payroll.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { istNow } from '../../utils/time.js';
+
+// The period must be unique per employee, so a free-text label is always qualified by its dates
+function buildPeriod(rawLabel, startDate, endDate) {
+  const range = `${startDate} to ${endDate}`;
+  // On edit the label comes back with its old dates attached
+  const label = rawLabel?.trim().replace(/ ?\(?\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}\)?$/, '');
+  // The column holds 50 characters and the qualified form adds 27
+  if (label && label.length > 23) {
+    throw ApiError.badRequest('Period label must be 23 characters or fewer');
+  }
+  return label ? `${label} (${range})` : range;
+}
+
+function assertChangeable(record, user) {
+  if (record.status === 'paid' && user.role !== 'admin') {
+    throw ApiError.forbidden('Paid wage records can only be changed by an Admin.');
+  }
+}
 
 function cleanPhoneNumber(phone) {
   if (!phone) return null;
@@ -38,26 +57,11 @@ export class PayrollService {
   }
 
   static async createPayroll(data, createdById) {
-    if (!data.user_id) {
-      throw ApiError.badRequest('Employee selection is required');
-    }
-    if (!data.start_date || !data.end_date) {
-      throw ApiError.badRequest('Wages From Date and To Date are required');
-    }
-
     if (data.start_date > data.end_date) {
       throw ApiError.badRequest('Wages From Date cannot be after To Date');
     }
 
-    // The period must be unique per employee, so a free-text label is always qualified by its dates
-    const range = `${data.start_date} to ${data.end_date}`;
-    const label = data.payroll_period?.trim();
-    // The column holds 50 characters and the qualified form adds 27
-    if (label && label !== range && label.length > 23) {
-      throw ApiError.badRequest('Period label must be 23 characters or fewer');
-    }
-    const period = label && label !== range ? `${label} (${range})` : range;
-
+    const period = buildPeriod(data.payroll_period, data.start_date, data.end_date);
     data.payroll_period = period;
 
     const existing = await PayrollRepository.findByUserAndPeriod(data.user_id, period);
@@ -73,9 +77,29 @@ export class PayrollService {
     return PayrollRepository.create(data, createdById);
   }
 
-  static async updatePayroll(id, data) {
+  static async updatePayroll(id, data, user) {
     const existing = await PayrollRepository.findById(id);
     if (!existing) throw ApiError.notFound('Payroll record not found');
+    assertChangeable(existing, user);
+
+    const start = data.start_date ?? existing.start_date;
+    const end = data.end_date ?? existing.end_date;
+    const employee = data.user_id ?? existing.user_id;
+
+    if (start && end) {
+      if (start > end) throw ApiError.badRequest('Wages From Date cannot be after To Date');
+
+      data.payroll_period = buildPeriod(data.payroll_period ?? existing.payroll_period, start, end);
+      data.payroll_month = start.slice(0, 7);
+
+      // Only when something moved, so old overlapping records can still have notes corrected
+      if (start !== existing.start_date || end !== existing.end_date || employee !== existing.user_id) {
+        const overlap = await PayrollRepository.findOverlapping(employee, start, end, existing.id);
+        if (overlap) {
+          throw ApiError.conflict(`This employee already has a wage record overlapping ${overlap.start_date} to ${overlap.end_date}`);
+        }
+      }
+    }
 
     return PayrollRepository.update(id, data);
   }
@@ -83,20 +107,21 @@ export class PayrollService {
   static async markAsPaid(id, data) {
     const existing = await PayrollRepository.findById(id);
     if (!existing) throw ApiError.notFound('Payroll record not found');
+    if (existing.status === 'paid') throw ApiError.badRequest('These wages are already marked as paid.');
 
-    const now = new Date().toISOString().slice(0, 10);
     return PayrollRepository.update(id, {
       status: 'paid',
-      payment_date: data.payment_date || now,
+      payment_date: data.payment_date || istNow().slice(0, 10),
       payment_reference: data.payment_reference ? data.payment_reference.trim() : null,
       payment_method: data.payment_method || existing.payment_method,
       notes: data.notes || existing.notes,
     });
   }
 
-  static async deletePayroll(id) {
+  static async deletePayroll(id, user) {
     const existing = await PayrollRepository.findById(id);
     if (!existing) throw ApiError.notFound('Payroll record not found');
+    assertChangeable(existing, user);
     await PayrollRepository.delete(id);
     return { success: true, message: 'Payroll record deleted' };
   }
@@ -179,7 +204,7 @@ export class PayrollService {
   static async getMonthlyBroadcastList(query = {}) {
     const filters = { ...query };
     if (!filters.period && !filters.month && !filters.startDate && !filters.endDate) {
-      filters.period = new Date().toISOString().slice(0, 7);
+      filters.period = istNow().slice(0, 7);
     }
 
     const records = await PayrollRepository.findAll(filters);

@@ -43,6 +43,7 @@ export class AccountsController {
       }
 
       const updated = await AccountsRepository.processPayout(id, req.user.id, req.body);
+      if (!updated) throw ApiError.conflict('This voucher was just changed by someone else. Refresh and try again.');
 
       // Audit Log
       await logAudit(req, {
@@ -67,7 +68,7 @@ export class AccountsController {
 
   static async bulkProcessPayout(req, res, next) {
     try {
-      const { expense_ids, payment_method, payment_reference, comments } = req.body;
+      const { expense_ids, payment_method, payment_reference, payment_date, comments } = req.body;
 
       if (!expense_ids || !Array.isArray(expense_ids) || expense_ids.length === 0) {
         throw ApiError.badRequest('Must provide an array of expense IDs to process');
@@ -80,8 +81,10 @@ export class AccountsController {
           const item = await AccountsRepository.processPayout(id, req.user.id, {
             payment_method,
             payment_reference,
+            payment_date,
             comments,
           });
+          if (!item) continue;
           processed.push(item);
 
           await logAudit(req, {
