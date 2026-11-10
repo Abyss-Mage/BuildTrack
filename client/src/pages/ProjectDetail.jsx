@@ -191,6 +191,11 @@ export function ProjectDetail() {
               </span>
               <StatusBadge status={project?.status} />
             </div>
+            {project?.po_number && (
+              <span className="text-xs font-mono text-slate-500 block mt-1">
+                PO {project.po_number}{project.po_date ? ` • ${project.po_date}` : ''}
+              </span>
+            )}
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-2">
               {project?.name}
             </h1>
@@ -411,7 +416,7 @@ export function ProjectDetail() {
                     {exp.category_name} • {exp.expense_date} • By {exp.submitter_name}
                     {exp.approver_name && (
                       <span className="text-emerald-700 font-semibold ml-1">
-                        • Approved by {exp.approver_name} ({exp.approver_role?.replace('_', ' ')})
+                        • Approved by {exp.approver_name} ({exp.approver_role?.replace(/_/g, ' ')})
                       </span>
                     )}
                   </p>

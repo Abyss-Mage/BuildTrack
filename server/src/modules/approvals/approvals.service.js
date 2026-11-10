@@ -1,6 +1,7 @@
 import { ApprovalsRepository } from './approvals.repository.js';
 import { ExpensesRepository } from '../expenses/expenses.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { istNow } from '../../utils/time.js';
 import db from '../../config/database.js';
 
 export class ApprovalsService {
@@ -16,9 +17,13 @@ export class ApprovalsService {
       throw ApiError.badRequest(`Cannot approve expense in '${expense.status}' status. Only pending expenses can be approved.`);
     }
 
-    // Role check: PM or Admin
-    if (!['admin', 'project_manager'].includes(user.role)) {
-      throw ApiError.forbidden('Only Project Managers or Admins can approve pending expenses.');
+    // Role check: Accountant or Admin
+    if (!['admin', 'accountant'].includes(user.role)) {
+      throw ApiError.forbidden('Only Accountants or Admins can approve pending expenses.');
+    }
+
+    if (user.role !== 'admin' && expense.submitted_by === user.id) {
+      throw ApiError.forbidden('You cannot approve your own expense. A Super Admin must approve it.');
     }
 
     // Per-Account Expenditure Approval Limit Enforcement
@@ -46,16 +51,20 @@ export class ApprovalsService {
       }
     }
 
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const now = istNow();
+    // The money for an advance-funded expense was already handed over, so it must never reach the payout queue
+    const nextStep = expense.advance_id
+      ? { status: 'processed', processed_by: user.id, processed_at: now }
+      : { status: 'approved' };
 
     // Update expense status & record approver identity directly
     await ExpensesRepository.update(expenseId, {
-      status: 'approved',
+      ...nextStep,
       rejection_reason: null,
       approved_by: user.id,
       approved_at: now,
       approval_comments: comments || null,
-    });
+    }, [], 'pending');
 
     // Log in approvals table
     await ApprovalsRepository.logApproval(expenseId, user.id, 'approved', comments, 1);
@@ -75,43 +84,20 @@ export class ApprovalsService {
       throw ApiError.badRequest('Rejection reason is required.');
     }
 
-    // Role check: PM, Admin, Accountant
-    if (!['admin', 'project_manager', 'accountant'].includes(user.role)) {
+    // Role check: Admin, Accountant
+    if (!['admin', 'accountant'].includes(user.role)) {
       throw ApiError.forbidden('You do not have permission to reject this expense.');
     }
 
     await ExpensesRepository.update(expenseId, {
       status: 'rejected',
       rejection_reason: reason.trim(),
-    });
+      approved_by: null,
+      approved_at: null,
+      approval_comments: null,
+    }, [], expense.status);
 
     await ApprovalsRepository.logApproval(expenseId, user.id, 'rejected', comments ? `${reason} | ${comments}` : reason, 1);
-
-    return ExpensesRepository.findById(expenseId);
-  }
-
-  static async processExpense(expenseId, user, comments = '') {
-    const expense = await ExpensesRepository.findById(expenseId);
-    if (!expense) throw ApiError.notFound('Expense not found');
-
-    if (expense.status !== 'approved') {
-      throw ApiError.badRequest(`Only approved expenses can be processed for payment. Current status: '${expense.status}'`);
-    }
-
-    // Role check: Accountant or Admin
-    if (!['admin', 'accountant'].includes(user.role)) {
-      throw ApiError.forbidden('Only Accountants or Admins can mark expenses as processed.');
-    }
-
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-
-    await ExpensesRepository.update(expenseId, {
-      status: 'processed',
-      processed_by: user.id,
-      processed_at: now,
-    });
-
-    await ApprovalsRepository.logApproval(expenseId, user.id, 'approved', comments || 'Payment processed and reconciled', 2);
 
     return ExpensesRepository.findById(expenseId);
   }

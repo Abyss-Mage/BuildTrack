@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/client';
 import Modal from '../components/ui/Modal';
 import { useUiStore } from '../store/uiStore';
+import { useAuthStore } from '../store/authStore';
 import { UploadCloud, X, FileText, Image as ImageIcon, Loader2, AlertTriangle } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 const HIDE_BUDGET_WARNING_KEY = 'hideBudgetWarning';
 
@@ -18,6 +20,9 @@ const formatINR = (val) => `₹ ${Number(val || 0).toLocaleString('en-IN')}`;
 
 export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = null }) {
   const { showNotification } = useUiStore();
+  const { user } = useAuthStore();
+  const mustUseAdvance = user?.role === 'site_in_charge';
+  const [advances, setAdvances] = useState([]);
 
   const [projects, setProjects] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -32,10 +37,11 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
     title: '',
     description: '',
     amount: '',
-    expense_date: new Date().toISOString().split('T')[0],
+    expense_date: toLocalDate(),
     vendor_name: '',
     payment_method: 'cash',
     status: 'pending',
+    advance_id: '',
   });
 
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -47,10 +53,12 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
     const loadMeta = async () => {
       try {
         setLoadingInitial(true);
-        const [projRes, catRes] = await Promise.all([
+        const [projRes, catRes, advRes] = await Promise.all([
           api.get('/projects'),
           api.get('/categories'),
+          api.get('/advances', { params: { status: 'approved' } }),
         ]);
+        setAdvances(advRes.data.data.advances || []);
         setProjects(projRes.data.data || []);
         setCategories(catRes.data.data?.filter((c) => c.is_active) || []);
 
@@ -61,10 +69,11 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
             title: initialExpense.title || '',
             description: initialExpense.description || '',
             amount: initialExpense.amount || '',
-            expense_date: initialExpense.expense_date || new Date().toISOString().split('T')[0],
+            expense_date: initialExpense.expense_date || toLocalDate(),
             vendor_name: initialExpense.vendor_name || '',
             payment_method: initialExpense.payment_method || 'cash',
             status: initialExpense.status || 'pending',
+            advance_id: initialExpense.advance_id || '',
           });
         } else if (projRes.data.data?.length > 0) {
           setFormData((prev) => ({
@@ -82,6 +91,10 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
 
     loadMeta();
   }, [isOpen, initialExpense]);
+
+  const projectAdvances = advances.filter(
+    (a) => String(a.project_id) === String(formData.project_id) && (a.remaining > 0 || String(a.id) === String(formData.advance_id))
+  );
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
@@ -119,6 +132,11 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
 
     if (!formData.project_id || !formData.category_id) {
       showNotification('Please select both a Project and a Category', 'error');
+      return;
+    }
+
+    if (mustUseAdvance && forcedStatus !== 'draft' && !formData.advance_id) {
+      showNotification('Select the advance this expense is paid from', 'error');
       return;
     }
 
@@ -179,6 +197,7 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
       data.append('vendor_name', formData.vendor_name || '');
       data.append('payment_method', formData.payment_method);
       data.append('status', forcedStatus || formData.status || 'pending');
+      if (formData.advance_id) data.append('advance_id', formData.advance_id);
 
       selectedFiles.forEach((file) => {
         data.append('receipts', file);
@@ -187,11 +206,13 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
       if (initialExpense) {
         await api.put(`/expenses/${initialExpense.id}`, data, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 0, // Several photos on a weak site connection can take minutes
         });
         showNotification('Expense entry updated successfully');
       } else {
         await api.post('/expenses', data, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 0,
         });
         showNotification('Expense created and queued for review');
       }
@@ -227,7 +248,7 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
               </label>
               <select
                 value={formData.project_id}
-                onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, project_id: e.target.value, advance_id: '' })}
                 required
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               >
@@ -259,6 +280,25 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Advance */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              Paid From Advance {mustUseAdvance ? '*' : '(Optional)'}
+            </label>
+            <select
+              value={formData.advance_id}
+              onChange={(e) => setFormData({ ...formData, advance_id: e.target.value })}
+              className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
+            >
+              <option value="">{projectAdvances.length ? (mustUseAdvance ? 'Select Advance' : 'Not from an advance') : 'No approved advance for this site'}</option>
+              {projectAdvances.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.start_date} to {a.end_date} • {formatINR(a.remaining)} left of {formatINR(a.amount)}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Title */}
@@ -378,7 +418,6 @@ export function ExpenseFormModal({ isOpen, onClose, onSuccess, initialExpense = 
                 type="file"
                 multiple
                 accept="image/jpeg,image/png,image/webp,application/pdf"
-                capture="environment"
                 onChange={handleFileChange}
                 className="hidden"
               />

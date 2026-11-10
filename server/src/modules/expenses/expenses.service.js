@@ -1,5 +1,8 @@
 import { ExpensesRepository } from './expenses.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { removeReceiptFiles } from '../../middleware/upload.js';
+import { assertSiteAccess } from '../../utils/siteScope.js';
+import { AdvancesService } from '../advances/advances.service.js';
 
 export class ExpensesService {
   static async getAllExpenses(filters, user) {
@@ -9,17 +12,15 @@ export class ExpensesService {
   static async getExpenseById(id, user) {
     const expense = await ExpensesRepository.findById(id);
     if (!expense) throw ApiError.notFound('Expense record not found');
-
-    // Role verification
-    if (user.role === 'site_engineer' && expense.submitted_by !== user.id) {
-      // Check if engineer is in project members
-      // (Allowed to view project expenses if assigned)
-    }
-
+    await assertSiteAccess(user, expense.project_id);
     return expense;
   }
 
   static async createExpense(data, receipts, user) {
+    await AdvancesService.assertExpenseAllowed(
+      { projectId: data.project_id, advanceId: data.advance_id, amount: data.amount, status: data.status },
+      user
+    );
     return ExpensesRepository.create(data, receipts, user.id);
   }
 
@@ -43,7 +44,18 @@ export class ExpensesService {
       data.rejection_reason = null;
     }
 
-    return ExpensesRepository.update(id, data, receipts);
+    await AdvancesService.assertExpenseAllowed(
+      {
+        projectId: data.project_id ?? existing.project_id,
+        advanceId: data.advance_id ?? existing.advance_id,
+        amount: data.amount ?? existing.amount,
+        status: data.status ?? existing.status,
+        excludeExpenseId: existing.id,
+      },
+      user
+    );
+
+    return ExpensesRepository.update(id, data, receipts, existing.status);
   }
 
   static async submitExpense(id, user) {
@@ -57,7 +69,18 @@ export class ExpensesService {
       throw ApiError.badRequest(`Expense is already in '${existing.status}' status.`);
     }
 
-    return ExpensesRepository.update(id, { status: 'pending', rejection_reason: null });
+    await AdvancesService.assertExpenseAllowed(
+      {
+        projectId: existing.project_id,
+        advanceId: existing.advance_id,
+        amount: existing.amount,
+        status: 'pending',
+        excludeExpenseId: existing.id,
+      },
+      user
+    );
+
+    return ExpensesRepository.update(id, { status: 'pending', rejection_reason: null }, [], existing.status);
   }
 
   static async deleteExpense(id, user) {
@@ -72,21 +95,7 @@ export class ExpensesService {
     }
 
     await ExpensesRepository.delete(id);
+    removeReceiptFiles(existing.receipts.map((r) => r.file_path));
     return { success: true, message: 'Expense deleted successfully' };
-  }
-
-  static async removeReceipt(expenseId, receiptId, user) {
-    const existing = await this.getExpenseById(expenseId, user);
-
-    if (user.role !== 'admin' && existing.submitted_by !== user.id) {
-      throw ApiError.forbidden('You can only modify receipts on your own expenses.');
-    }
-
-    if (user.role !== 'admin' && !['draft', 'rejected'].includes(existing.status)) {
-      throw ApiError.badRequest('Cannot remove receipts from submitted expenses.');
-    }
-
-    await ExpensesRepository.deleteReceipt(receiptId);
-    return { success: true, message: 'Receipt removed' };
   }
 }

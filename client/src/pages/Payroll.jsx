@@ -26,6 +26,7 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Payroll() {
   const { user } = useAuthStore();
@@ -41,8 +42,8 @@ export function Payroll() {
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
 
-  const defaultStart = mon.toISOString().slice(0, 10);
-  const defaultEnd = sun.toISOString().slice(0, 10);
+  const defaultStart = toLocalDate(mon);
+  const defaultEnd = toLocalDate(sun);
 
   const [payrolls, setPayrolls] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -85,7 +86,7 @@ export function Payroll() {
   const [payForm, setPayForm] = useState({
     payment_reference: '',
     payment_method: 'bank_transfer',
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: toLocalDate(),
   });
 
   const loadEmployees = async () => {
@@ -154,8 +155,8 @@ export function Payroll() {
   };
 
   const applyThisMonth = () => {
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const firstDay = toLocalDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    const lastDay = toLocalDate(new Date(today.getFullYear(), today.getMonth() + 1, 0));
     setFilters((prev) => ({
       ...prev,
       startDate: firstDay,
@@ -568,7 +569,7 @@ export function Payroll() {
                               setPayForm({
                                 payment_reference: '',
                                 payment_method: item.payment_method || 'bank_transfer',
-                                payment_date: new Date().toISOString().slice(0, 10),
+                                payment_date: toLocalDate(),
                               });
                             }}
                             className="px-2.5 py-1 text-xs font-bold bg-brand-500 hover:bg-brand-600 text-slate-950 rounded-lg shadow-sm"
@@ -577,8 +578,8 @@ export function Payroll() {
                           </button>
                         )}
 
-                        {/* Edit (finance only) */}
-                        {isFinanceOrAdmin && (
+                        {/* Edit (finance only; paid records are Admin only) */}
+                        {isFinanceOrAdmin && (item.status !== 'paid' || user?.role === 'admin') && (
                           <button
                             onClick={() => openEdit(item)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
@@ -620,7 +621,7 @@ export function Payroll() {
                 <option value="">Select Employee</option>
                 {employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name} ({emp.role.replace('_', ' ')})
+                    {emp.name} ({emp.role.replace(/_/g, ' ')})
                   </option>
                 ))}
               </select>
@@ -662,6 +663,7 @@ export function Payroll() {
               <input
                 type="text"
                 value={formData.payroll_period}
+                maxLength={editingPayroll ? 50 : 23}
                 onChange={(e) => setFormData({ ...formData, payroll_period: e.target.value })}
                 placeholder="e.g. Site A Week 1 or Nov 1st Week (optional)"
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
@@ -924,7 +926,7 @@ export function Payroll() {
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">Designation</span>
-                  <span className="font-bold text-slate-900 capitalize">{selectedPayslip.employee_role?.replace('_', ' ')}</span>
+                  <span className="font-bold text-slate-900 capitalize">{selectedPayslip.employee_role?.replace(/_/g, ' ')}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] uppercase">Contact Phone</span>

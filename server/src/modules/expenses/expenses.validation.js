@@ -11,6 +11,7 @@ export const createExpenseSchema = z.object({
     vendor_name: z.string().optional().nullable(),
     payment_method: z.enum(['cash', 'upi', 'bank_transfer', 'cheque', 'credit_card']).default('cash'),
     status: z.enum(['draft', 'pending']).default('pending'),
+    advance_id: z.coerce.number().int().positive().optional(),
   }),
 });
 
@@ -25,5 +26,6 @@ export const updateExpenseSchema = z.object({
     vendor_name: z.string().optional().nullable(),
     payment_method: z.enum(['cash', 'upi', 'bank_transfer', 'cheque', 'credit_card']).optional(),
     status: z.enum(['draft', 'pending']).optional(),
+    advance_id: z.coerce.number().int().positive().optional(),
   }),
 });

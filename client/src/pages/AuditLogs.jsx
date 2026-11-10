@@ -20,6 +20,7 @@ import {
   FileText,
   Key,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function AuditLogs() {
   const { user } = useAuthStore();
@@ -85,17 +86,17 @@ export function AuditLogs() {
   };
 
   const setDatePreset = (preset) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalDate();
     if (preset === 'today') {
       setFilters((prev) => ({ ...prev, startDate: today, endDate: today }));
     } else if (preset === '7days') {
       const d = new Date();
       d.setDate(d.getDate() - 7);
-      setFilters((prev) => ({ ...prev, startDate: d.toISOString().slice(0, 10), endDate: today }));
+      setFilters((prev) => ({ ...prev, startDate: toLocalDate(d), endDate: today }));
     } else if (preset === 'month') {
       const d = new Date();
       d.setDate(1);
-      setFilters((prev) => ({ ...prev, startDate: d.toISOString().slice(0, 10), endDate: today }));
+      setFilters((prev) => ({ ...prev, startDate: toLocalDate(d), endDate: today }));
     }
   };
 
@@ -316,7 +317,7 @@ export function AuditLogs() {
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-900 block">{log.user_name || 'System'}</span>
                         <span className="text-[10px] text-slate-400 capitalize">
-                          {log.user_role?.replace('_', ' ') || 'Internal'}
+                          {log.user_role?.replace(/_/g, ' ') || 'Internal'}
                         </span>
                       </td>
 
@@ -397,7 +398,7 @@ export function AuditLogs() {
               <div>
                 <span className="text-slate-400 block text-[10px] uppercase">System Role</span>
                 <span className="font-semibold text-slate-800 capitalize">
-                  {selectedLog.user_role?.replace('_', ' ')}
+                  {selectedLog.user_role?.replace(/_/g, ' ')}
                 </span>
               </div>
               <div>

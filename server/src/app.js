@@ -22,6 +22,9 @@ import reportsRoutes from './modules/reports/reports.routes.js';
 import accountsRoutes from './modules/accounts/accounts.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
 import payrollRoutes from './modules/payroll/payroll.routes.js';
+import advancesRoutes from './modules/advances/advances.routes.js';
+import purchaseRequisitionsRoutes from './modules/purchaseRequisitions/purchaseRequisitions.routes.js';
+import wageSheetsRoutes from './modules/wageSheets/wageSheets.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -76,7 +79,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: 5000, // Per IP, and a whole office shares one
   standardHeaders: true,
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
@@ -106,6 +109,9 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/advances', advancesRoutes);
+app.use('/api/purchase-requisitions', purchaseRequisitionsRoutes);
+app.use('/api/wage-sheets', wageSheetsRoutes);
 
 // In production, serve the built React client
 const clientDist = path.resolve(__dirname, '../../client/dist');

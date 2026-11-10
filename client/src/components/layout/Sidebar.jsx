@@ -17,6 +17,9 @@ import {
   Banknote,
   ShieldAlert,
   Settings as SettingsIcon,
+  Wallet,
+  ClipboardList,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export function Sidebar() {
@@ -26,17 +29,20 @@ export function Sidebar() {
   const isRole = (roles) => roles.includes(user?.role);
 
   const navItems = [
-    { name: 'Dashboard', to: '/', icon: LayoutDashboard, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
-    { name: 'Projects', to: '/projects', icon: Building2, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
-    { name: 'Expenses', to: '/expenses', icon: Receipt, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
-    { name: 'Approvals', to: '/approvals', icon: CheckSquare, roles: ['admin', 'project_manager', 'accountant'] },
-    { name: 'Accounts & Payouts', to: '/accounts', icon: Landmark, roles: ['admin', 'accountant', 'project_manager'] },
-    { name: 'Payroll & Wages', to: '/payroll', icon: Banknote, roles: ['admin', 'accountant', 'site_engineer', 'project_manager'] },
-    { name: 'Reports & P&L', to: '/reports', icon: BarChart3, roles: ['admin', 'project_manager', 'accountant'] },
+    { name: 'Dashboard', to: '/', icon: LayoutDashboard, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Projects', to: '/projects', icon: Building2, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Expenses', to: '/expenses', icon: Receipt, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Advances', to: '/advances', icon: Wallet, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Purchase Requisitions', to: '/purchase-requisitions', icon: ClipboardList, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Approvals', to: '/approvals', icon: CheckSquare, roles: ['admin', 'accountant'] },
+    { name: 'Accounts & Payouts', to: '/accounts', icon: Landmark, roles: ['admin', 'accountant'] },
+    { name: 'Payroll & Wages', to: '/payroll', icon: Banknote, roles: ['admin', 'accountant'] },
+    { name: 'Wage Sheets (Excel)', to: '/wage-sheets', icon: FileSpreadsheet, roles: ['admin', 'accountant'] },
+    { name: 'Reports & P&L', to: '/reports', icon: BarChart3, roles: ['admin', 'accountant'] },
     { name: 'Team Users', to: '/users', icon: Users, roles: ['admin'] },
     { name: 'Audit Logs', to: '/audit-logs', icon: ShieldAlert, roles: ['admin'] },
     { name: 'Categories', to: '/categories', icon: Tags, roles: ['admin'] },
-    { name: 'Account Settings', to: '/settings', icon: SettingsIcon, roles: ['admin', 'project_manager', 'site_engineer', 'accountant'] },
+    { name: 'Account Settings', to: '/settings', icon: SettingsIcon, roles: ['admin', 'site_in_charge', 'accountant'] },
   ];
 
   const visibleItems = navItems.filter((item) => isRole(item.roles));
@@ -97,7 +103,7 @@ export function Sidebar() {
                 {user?.name}
               </p>
               <p className="text-[10px] text-brand-400 font-medium capitalize truncate">
-                {user?.role?.replace('_', ' ')}
+                {user?.role?.replace(/_/g, ' ')}
               </p>
             </div>
             <SettingsIcon className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300" />

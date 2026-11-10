@@ -22,6 +22,7 @@ import {
   X,
   RotateCcw,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Accounts() {
   const { user } = useAuthStore();
@@ -58,7 +59,7 @@ export function Accounts() {
     payment_method: 'bank_transfer',
     payment_reference: '',
     comments: '',
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: toLocalDate(),
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -91,6 +92,8 @@ export function Accounts() {
 
       setSummary(sumRes.data.data);
       setQueue(queueRes.data.data || []);
+      // A tick must never outlive its row: filtered-out or already-paid vouchers would be paid unseen
+      setSelectedIds((prev) => prev.filter((id) => queueRes.data.data.some((item) => item.id === id)));
       setSettlements(settRes.data.data || []);
     } catch (err) {
       showNotification('Failed to load accounts data', 'error');
@@ -157,7 +160,7 @@ export function Accounts() {
       payment_method: expense.payment_method || 'bank_transfer',
       payment_reference: '',
       comments: '',
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: toLocalDate(),
     });
     setIsPayoutModalOpen(true);
   };
@@ -171,7 +174,7 @@ export function Accounts() {
       payment_method: 'bank_transfer',
       payment_reference: '',
       comments: '',
-      payment_date: new Date().toISOString().slice(0, 10),
+      payment_date: toLocalDate(),
     });
     setIsPayoutModalOpen(true);
   };
@@ -181,11 +184,11 @@ export function Accounts() {
     try {
       setIsSubmitting(true);
       if (isBulkPayout) {
-        await api.post('/accounts/bulk-process', {
+        const res = await api.post('/accounts/bulk-process', {
           expense_ids: selectedIds,
           ...payoutForm,
         });
-        showNotification(`Successfully disbursed ${selectedIds.length} vouchers!`);
+        showNotification(`Disbursed ${res.data.data.count} of ${selectedIds.length} vouchers`);
         setSelectedIds([]);
       } else {
         await api.post(`/accounts/process-payout/${targetExpense.id}`, payoutForm);
@@ -205,13 +208,13 @@ export function Accounts() {
     try {
       showNotification('Generating Settlement Excel report...', 'info');
       const response = await api.get('/reports/expenses/excel', {
-        params: { status: 'processed', ...filters },
+        params: { ledger: 'settlements', status: 'processed', ...filters },
         responseType: 'blob',
       });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Accounts-Settlement-Ledger-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      link.setAttribute('download', `Accounts-Settlement-Ledger-${toLocalDate()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -526,7 +529,7 @@ export function Accounts() {
                             <div className="flex flex-col">
                               <span className="font-semibold text-emerald-800 text-xs">{item.approver_name}</span>
                               <span className="text-[10px] text-slate-400 capitalize">
-                                {item.approver_role?.replace('_', ' ')}
+                                {item.approver_role?.replace(/_/g, ' ')}
                               </span>
                             </div>
                           ) : (
@@ -609,7 +612,7 @@ export function Accounts() {
                           {item.approver_name || 'Manager'}
                         </span>
                         <span className="text-[10px] text-slate-400 capitalize">
-                          {item.approver_role?.replace('_', ' ') || 'Approver'}
+                          {item.approver_role?.replace(/_/g, ' ') || 'Approver'}
                         </span>
                       </td>
 

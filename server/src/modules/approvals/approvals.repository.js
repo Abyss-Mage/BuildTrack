@@ -13,28 +13,26 @@ export class ApprovalsRepository {
         u.email as submitter_email,
         app.name as approver_name,
         app.role as approver_role,
-        rl.max_amount_per_expense as role_max_limit,
-        rl.can_approve as role_can_approve,
         (SELECT COUNT(*) FROM receipts r WHERE r.expense_id = e.id) as receipt_count
       FROM expenses e
       JOIN projects p ON e.project_id = p.id
       JOIN categories c ON e.category_id = c.id
       JOIN users u ON e.submitted_by = u.id
       LEFT JOIN users app ON e.approved_by = app.id
-      LEFT JOIN project_role_approval_limits rl ON (rl.project_id = e.project_id AND rl.role = ?)
     `;
 
-    const params = [user.role];
+    const params = [];
 
     if (user.role === 'accountant') {
-      sql += ` WHERE e.status = 'approved'`;
-    } else if (user.role === 'project_manager') {
-      sql += ` WHERE e.status = 'pending'`;
-      // Vouchers above the manager's own approval limit are not shown; no limit means unlimited
+      // Approved vouchers waiting for payout, plus pending ones this accountant may approve
+      sql += ` WHERE (e.status = 'approved' OR (e.status = 'pending' AND e.submitted_by <> ?`;
+      params.push(user.id);
+      // Vouchers above the accountant's own approval limit are not shown; no limit means unlimited
       if (user.approval_limit !== null && user.approval_limit !== undefined) {
         sql += ' AND e.amount <= ?';
         params.push(Number(user.approval_limit));
       }
+      sql += '))';
     } else if (user.role === 'admin') {
       if (filters.status && ['pending', 'approved'].includes(filters.status)) {
         sql += ` WHERE e.status = ?`;

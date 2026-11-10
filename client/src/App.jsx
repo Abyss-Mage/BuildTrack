@@ -19,6 +19,9 @@ import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
 import Categories from './pages/Categories';
 import Settings from './pages/Settings';
+import Advances from './pages/Advances';
+import PurchaseRequisitions from './pages/PurchaseRequisitions';
+import WageSheets from './pages/WageSheets';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, token } = useAuthStore();
@@ -53,34 +56,52 @@ export function App() {
           <Route path="/projects/:id" element={<ProjectDetail />} />
           <Route path="/expenses" element={<Expenses />} />
 
-          {/* Approvals: PM, Accountant, Admin */}
+          {/* Approvals: Accountant, Admin */}
           <Route
             path="/approvals"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'project_manager', 'accountant']}>
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
                 <Approvals />
               </ProtectedRoute>
             }
           />
 
-          {/* Accounts & Payouts: Accountant, Admin, PM */}
+          {/* Accounts & Payouts: Accountant, Admin */}
           <Route
             path="/accounts"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'accountant', 'project_manager']}>
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
                 <Accounts />
               </ProtectedRoute>
             }
           />
 
-          {/* Payroll: Accessible to all workforce (Engineers view own slips, Accountant/Admin manage) */}
-          <Route path="/payroll" element={<Payroll />} />
+          <Route path="/advances" element={<Advances />} />
+          <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
 
-          {/* Reports: PM, Accountant, Admin */}
+          {/* Payroll: Accountant and Super Admin */}
+          <Route
+            path="/payroll"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
+                <Payroll />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/wage-sheets"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
+                <WageSheets />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Reports: Accountant, Admin */}
           <Route
             path="/reports"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'project_manager', 'accountant']}>
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
                 <Reports />
               </ProtectedRoute>
             }

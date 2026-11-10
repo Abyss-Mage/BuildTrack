@@ -8,7 +8,7 @@ export const getAllProjects = asyncHandler(async (req, res) => {
 });
 
 export const getProjectById = asyncHandler(async (req, res) => {
-  const project = await ProjectsService.getProjectById(req.params.id);
+  const project = await ProjectsService.getProjectById(req.params.id, req.user);
   res.status(200).json({ success: true, data: project });
 });
 
@@ -36,14 +36,4 @@ export const updateProject = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({ success: true, message: 'Project updated successfully', data: project });
-});
-
-export const updateRoleLimits = asyncHandler(async (req, res) => {
-  const project = await ProjectsService.updateRoleLimits(req.params.id);
-
-  res.status(200).json({
-    success: true,
-    message: 'Approval limits are managed per user account',
-    data: project,
-  });
 });

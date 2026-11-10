@@ -38,7 +38,7 @@ export class PayrollController {
   });
 
   static update = asyncHandler(async (req, res) => {
-    const item = await PayrollService.updatePayroll(req.params.id, req.body);
+    const item = await PayrollService.updatePayroll(req.params.id, req.body, req.user);
 
     await logAudit(req, {
       action: 'PAYROLL_UPDATE',
@@ -69,7 +69,7 @@ export class PayrollController {
   });
 
   static delete = asyncHandler(async (req, res) => {
-    const result = await PayrollService.deletePayroll(req.params.id);
+    const result = await PayrollService.deletePayroll(req.params.id, req.user);
 
     await logAudit(req, {
       action: 'PAYROLL_DELETE',

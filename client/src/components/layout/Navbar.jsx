@@ -8,7 +8,7 @@ export function Navbar({ onOpenNewExpense }) {
   const { user } = useAuthStore();
   const { toggleSidebar } = useUiStore();
 
-  const canCreateExpense = ['admin', 'project_manager', 'site_engineer'].includes(user?.role);
+  const canCreateExpense = ['admin', 'site_in_charge'].includes(user?.role);
 
   return (
     <header className="sticky top-0 z-30 h-16 material-thin shadow-[0_1px_0_rgb(0_0_0/0.05)] px-4 lg:px-8 flex items-center justify-between">
@@ -55,7 +55,7 @@ export function Navbar({ onOpenNewExpense }) {
               {user?.name}
             </span>
             <span className="block text-[11px] text-slate-500 capitalize">
-              {user?.role?.replace('_', ' ')}
+              {user?.role?.replace(/_/g, ' ')}
             </span>
           </div>
         </div>

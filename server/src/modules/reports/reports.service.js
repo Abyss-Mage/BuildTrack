@@ -1,6 +1,7 @@
 import db from '../../config/database.js';
 import { ExpensesRepository } from '../expenses/expenses.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { AccountsRepository } from '../accounts/accounts.repository.js';
 import { generateExpensePdfReport, generateProjectPlPdf } from '../../utils/pdfGenerator.js';
 import { generateExpenseExcelReport } from '../../utils/excelGenerator.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -63,7 +64,10 @@ export class ReportsService {
   }
 
   static async generateExcel(filters, user) {
-    const expenses = await this.getExpenseReportData(filters, user);
+    // The Accounts export must list exactly what the settlements screen shows
+    const expenses = filters.ledger === 'settlements'
+      ? await AccountsRepository.getSettlements(filters)
+      : await this.getExpenseReportData(filters, user);
     let projectName = 'All Projects';
     if (filters.projectId) {
       const proj = await ProjectsRepository.findById(filters.projectId);

@@ -19,6 +19,7 @@ import {
   User,
   SlidersHorizontal,
 } from 'lucide-react';
+import { toLocalDate } from '../utils/dateUtils';
 
 export function Reports() {
   const { user } = useAuthStore();
@@ -107,18 +108,18 @@ export function Reports() {
   const applyPreset = (preset) => {
     const now = new Date();
     let start = '';
-    let end = now.toISOString().split('T')[0];
+    let end = toLocalDate(now);
 
     if (preset === 'month') {
       start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     } else if (preset === 'last30') {
       const d = new Date();
       d.setDate(d.getDate() - 30);
-      start = d.toISOString().split('T')[0];
+      start = toLocalDate(d);
     } else if (preset === 'quarter') {
       const d = new Date();
       d.setDate(d.getDate() - 90);
-      start = d.toISOString().split('T')[0];
+      start = toLocalDate(d);
     } else if (preset === 'year') {
       start = `${now.getFullYear()}-01-01`;
     } else {
@@ -432,7 +433,7 @@ export function Reports() {
                 <option value="">All Personnel</option>
                 {usersList.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} ({u.role.replace('_', ' ')})
+                    {u.name} ({u.role.replace(/_/g, ' ')})
                   </option>
                 ))}
               </select>

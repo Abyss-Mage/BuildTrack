@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'site_engineer',
+  role TEXT NOT NULL DEFAULT 'site_in_charge',
   phone TEXT,
   approval_limit REAL DEFAULT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
@@ -142,17 +142,122 @@ CREATE TABLE IF NOT EXISTS payroll (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
 );
 
--- Per-project, per-role approval caps (read by the approvals queue)
-CREATE TABLE IF NOT EXISTS project_role_approval_limits (
+CREATE TABLE IF NOT EXISTS project_assignments (
+  project_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  PRIMARY KEY (project_id, user_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS advances (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
-  role TEXT NOT NULL,
-  max_amount_per_expense REAL DEFAULT NULL,
-  can_approve INTEGER NOT NULL DEFAULT 1,
+  site_in_charge_id INTEGER NOT NULL,
+  amount REAL NOT NULL,
+  allocation_date TEXT NOT NULL,
+  period_type TEXT NOT NULL DEFAULT 'custom',
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  approved_by INTEGER DEFAULT NULL,
+  approved_at TEXT DEFAULT NULL,
+  notes TEXT,
+  created_by INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  UNIQUE(project_id, role),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+  FOREIGN KEY (site_in_charge_id) REFERENCES users(id) ON DELETE RESTRICT,
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS purchase_requisitions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pr_no TEXT NOT NULL UNIQUE,
+  document_no TEXT NOT NULL,
+  pr_date TEXT NOT NULL,
+  project_id INTEGER NOT NULL,
+  site_description TEXT,
+  department TEXT,
+  required_date TEXT,
+  priority TEXT NOT NULL DEFAULT 'Normal',
+  justification TEXT,
+  requested_by INTEGER DEFAULT NULL,
+  verified_by INTEGER DEFAULT NULL,
+  purchase_by INTEGER DEFAULT NULL,
+  accounts_by INTEGER DEFAULT NULL,
+  approved_by INTEGER DEFAULT NULL,
+  created_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+  FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (purchase_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (accounts_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS purchase_requisition_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  requisition_id INTEGER NOT NULL,
+  sr_no INTEGER NOT NULL,
+  item TEXT NOT NULL,
+  description TEXT,
+  unit TEXT NOT NULL,
+  quantity REAL NOT NULL,
+  required_date TEXT,
+  vendor TEXT,
+  rate REAL DEFAULT NULL,
+  amount REAL NOT NULL DEFAULT 0.0,
+  remarks TEXT,
+  FOREIGN KEY (requisition_id) REFERENCES purchase_requisitions(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS employees (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  father_name TEXT NOT NULL DEFAULT '',
+  designation TEXT,
+  uan TEXT,
+  phone TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS wage_sheets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  period_type TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  source_file TEXT NOT NULL,
+  created_by INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS wage_rows (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sheet_id INTEGER NOT NULL,
+  employee_id INTEGER NOT NULL,
+  designation TEXT,
+  rate REAL NOT NULL DEFAULT 0.0,
+  monthly_salary REAL NOT NULL DEFAULT 0.0,
+  joining_date TEXT,
+  departure_date TEXT,
+  days_present REAL NOT NULL DEFAULT 0.0,
+  total_salary REAL NOT NULL DEFAULT 0.0,
+  ta_up REAL NOT NULL DEFAULT 0.0,
+  ta_down REAL NOT NULL DEFAULT 0.0,
+  salary_advance REAL NOT NULL DEFAULT 0.0,
+  pf_deduction REAL NOT NULL DEFAULT 0.0,
+  net_payable REAL NOT NULL DEFAULT 0.0,
+  paid REAL NOT NULL DEFAULT 0.0,
+  whatsapp_sent_at TEXT,
+  whatsapp_error TEXT,
+  FOREIGN KEY (sheet_id) REFERENCES wage_sheets(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE RESTRICT
 );
 `;
 
@@ -193,6 +298,9 @@ export async function initializeDatabase() {
     { table: 'payroll', col: 'payroll_period', def: 'TEXT' },
     { table: 'payroll', col: 'start_date', def: 'TEXT' },
     { table: 'payroll', col: 'end_date', def: 'TEXT' },
+    { table: 'projects', col: 'po_number', def: 'VARCHAR(100) DEFAULT NULL' },
+    { table: 'projects', col: 'po_date', def: 'DATE DEFAULT NULL' },
+    { table: 'expenses', col: 'advance_id', def: 'INT DEFAULT NULL' },
   ];
 
   for (const { table, col, def } of newCols) {
@@ -203,11 +311,38 @@ export async function initializeDatabase() {
     }
   }
 
+  try {
+    await db.execute('CREATE INDEX idx_expenses_advance ON expenses (advance_id)');
+  } catch (e) {
+    // Index already exists, safe to ignore
+  }
+
+  // Three roles only: Project Managers and Site Engineers become Site In-Charge
+  await db.execute('DROP TABLE IF EXISTS project_role_approval_limits');
+  const oldRoleColumn = db.getClientType() === 'mysql'
+    && (await db.getOne("SHOW COLUMNS FROM users LIKE 'role'")).Type.includes('site_engineer');
+  if (oldRoleColumn) {
+    await db.execute("ALTER TABLE users MODIFY role ENUM('admin', 'project_manager', 'site_engineer', 'site_in_charge', 'accountant') NOT NULL DEFAULT 'site_in_charge'");
+  }
+  await db.execute("UPDATE users SET role = 'site_in_charge' WHERE role IN ('project_manager', 'site_engineer')");
+  if (oldRoleColumn) {
+    await db.execute("ALTER TABLE users MODIFY role ENUM('admin', 'site_in_charge', 'accountant') NOT NULL DEFAULT 'site_in_charge'");
+  }
+
   // Backfill payroll_period from payroll_month if any exists
   try {
     await db.execute("UPDATE payroll SET payroll_period = payroll_month WHERE payroll_period IS NULL AND payroll_month IS NOT NULL");
   } catch (e) {
     // safe to ignore
+  }
+
+  // User updates used to log the new password in plain text: strip it from old audit rows
+  const leakedRows = await db.getAll(
+    `SELECT id, details FROM audit_logs WHERE action = 'USER_UPDATE' AND details LIKE '%"password"%'`
+  );
+  for (const row of leakedRows) {
+    const { password, ...changes } = JSON.parse(row.details);
+    await db.execute('UPDATE audit_logs SET details = ? WHERE id = ?', [JSON.stringify(changes), row.id]);
   }
 
   // Seed standard master categories if missing

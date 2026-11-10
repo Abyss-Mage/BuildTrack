@@ -1,4 +1,5 @@
 import db from '../../config/database.js';
+import { istNow } from '../../utils/time.js';
 
 export class AccountsRepository {
   static async getSummary() {
@@ -182,14 +183,18 @@ export class AccountsRepository {
   }
 
   static async processPayout(expenseId, userId, data) {
-    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    const now = istNow();
+    // Accountants may record a payment made on an earlier day, never a future one
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(data.payment_date) && data.payment_date <= now.slice(0, 10)
+      ? `${data.payment_date} ${now.slice(11)}`
+      : now;
 
     const updates = [
       "status = 'processed'",
       'processed_by = ?',
       'processed_at = ?',
     ];
-    const params = [userId, now];
+    const params = [userId, paidOn];
 
     if (data.payment_reference) {
       updates.push('payment_reference = ?');
@@ -203,7 +208,8 @@ export class AccountsRepository {
 
     params.push(expenseId);
 
-    await db.execute(`UPDATE expenses SET ${updates.join(', ')} WHERE id = ?`, params);
+    const changed = await db.execute(`UPDATE expenses SET ${updates.join(', ')} WHERE id = ? AND status = 'approved'`, params);
+    if (changed === 0) return null; // Someone else paid or rejected it first
 
     // Record in approvals audit log
     await db.insert(

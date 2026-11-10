@@ -10,7 +10,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/', getAllUsers);
-router.get('/:id', getUserById);
+router.get('/:id', authorize('admin'), getUserById);
 router.post('/', authorize('admin'), validate(createUserSchema), createUser);
 router.put('/:id', authorize('admin'), validate(updateUserSchema), updateUser);
 

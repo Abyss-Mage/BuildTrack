@@ -1,12 +1,14 @@
 import db from '../../config/database.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { istNow } from '../../utils/time.js';
+import { siteScope } from '../../utils/siteScope.js';
 
 export class ExpensesRepository {
   /**
    * Generate sequential reference number per month: EXP-YYYYMM-XXXX
    */
   static async generateReferenceNo() {
-    const now = new Date();
-    const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const yearMonth = istNow().slice(0, 7).replace('-', '');
     const prefix = `EXP-${yearMonth}-`;
 
     const latest = await db.getOne(
@@ -46,14 +48,17 @@ export class ExpensesRepository {
       JOIN users u ON e.submitted_by = u.id
       LEFT JOIN users app ON e.approved_by = app.id
       LEFT JOIN users proc ON e.processed_by = proc.id
-      WHERE 1=1
+      WHERE 1=1 ${siteScope(user, 'e.project_id')}
     `;
 
     const params = [];
 
-    // Note: Project member allocation removed. Everyone can see every project.
-
     // Filters
+    if (filters.advanceId) {
+      sql += ' AND e.advance_id = ?';
+      params.push(Number(filters.advanceId));
+    }
+
     if (filters.projectId) {
       sql += ' AND e.project_id = ?';
       params.push(Number(filters.projectId));
@@ -183,27 +188,35 @@ export class ExpensesRepository {
   }
 
   static async create(data, receipts = [], userId) {
-    const referenceNo = await this.generateReferenceNo();
-
-    const expenseId = await db.insert(
-      `INSERT INTO expenses (
-        reference_no, project_id, category_id, submitted_by, title, description,
-        amount, expense_date, vendor_name, payment_method, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        referenceNo,
-        data.project_id,
-        data.category_id,
-        userId,
-        data.title.trim(),
-        data.description || null,
-        data.amount,
-        data.expense_date,
-        data.vendor_name || null,
-        data.payment_method || 'cash',
-        data.status || 'pending',
-      ]
-    );
+    let expenseId;
+    // Two people submitting at the same moment can draw the same number; the loser takes the next one
+    for (let attempt = 1; !expenseId; attempt++) {
+      try {
+        expenseId = await db.insert(
+          `INSERT INTO expenses (
+            reference_no, project_id, category_id, submitted_by, title, description,
+            amount, expense_date, vendor_name, payment_method, status, advance_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            await this.generateReferenceNo(),
+            data.project_id,
+            data.category_id,
+            userId,
+            data.title.trim(),
+            data.description || null,
+            data.amount,
+            data.expense_date,
+            data.vendor_name || null,
+            data.payment_method || 'cash',
+            data.status || 'pending',
+            data.advance_id || null,
+          ]
+        );
+      } catch (err) {
+        const duplicate = err.code === 'ER_DUP_ENTRY' || err.message?.includes('UNIQUE constraint failed');
+        if (!duplicate || attempt === 5) throw err;
+      }
+    }
 
     // Save receipts
     if (receipts && receipts.length > 0) {
@@ -219,7 +232,8 @@ export class ExpensesRepository {
     return this.findById(expenseId);
   }
 
-  static async update(id, data, newReceipts = []) {
+  /** With expectedStatus, the write only happens if nobody changed the voucher since it was read. */
+  static async update(id, data, newReceipts = [], expectedStatus = null) {
     const fields = [];
     const values = [];
 
@@ -240,6 +254,7 @@ export class ExpensesRepository {
       'processed_by',
       'processed_at',
       'payment_reference',
+      'advance_id',
     ];
 
     for (const key of allowed) {
@@ -251,7 +266,14 @@ export class ExpensesRepository {
 
     if (fields.length > 0) {
       values.push(id);
-      await db.execute(`UPDATE expenses SET ${fields.join(', ')} WHERE id = ?`, values);
+      if (expectedStatus) values.push(expectedStatus);
+      const changed = await db.execute(
+        `UPDATE expenses SET ${fields.join(', ')} WHERE id = ?${expectedStatus ? ' AND status = ?' : ''}`,
+        values
+      );
+      if (expectedStatus && changed === 0) {
+        throw ApiError.conflict('This voucher was just changed by someone else. Refresh and try again.');
+      }
     }
 
     // Attach new receipts if uploaded
@@ -270,13 +292,5 @@ export class ExpensesRepository {
 
   static async delete(id) {
     await db.execute('DELETE FROM expenses WHERE id = ?', [id]);
-  }
-
-  static async deleteReceipt(receiptId) {
-    const receipt = await db.getOne('SELECT * FROM receipts WHERE id = ?', [receiptId]);
-    if (receipt) {
-      await db.execute('DELETE FROM receipts WHERE id = ?', [receiptId]);
-    }
-    return receipt;
   }
 }

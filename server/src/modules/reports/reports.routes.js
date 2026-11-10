@@ -12,12 +12,12 @@ import { authorize } from '../../middleware/authorize.js';
 const router = Router();
 
 router.use(auth);
+router.use(authorize('admin', 'accountant'));
 
-// All roles except site_engineer can view reports and exports
-router.get('/expenses', authorize('admin', 'project_manager', 'accountant'), getExpenseReport);
-router.get('/expenses/pdf', authorize('admin', 'project_manager', 'accountant'), downloadExpensePdf);
-router.get('/expenses/excel', authorize('admin', 'project_manager', 'accountant'), downloadExpenseExcel);
-router.get('/project-pl/:projectId', authorize('admin', 'project_manager', 'accountant'), getProjectPl);
-router.get('/project-pl/:projectId/pdf', authorize('admin', 'project_manager', 'accountant'), downloadProjectPlPdf);
+router.get('/expenses', getExpenseReport);
+router.get('/expenses/pdf', downloadExpensePdf);
+router.get('/expenses/excel', downloadExpenseExcel);
+router.get('/project-pl/:projectId', getProjectPl);
+router.get('/project-pl/:projectId/pdf', downloadProjectPlPdf);
 
 export default router;
