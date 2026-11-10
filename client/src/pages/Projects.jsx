@@ -57,9 +57,7 @@ export function Projects() {
     status: 'active',
     po_number: '',
     po_date: '',
-    site_in_charge_ids: [],
   });
-  const [siteInCharges, setSiteInCharges] = useState([]);
 
   const canManageProjects = ['admin'].includes(user?.role);
 
@@ -88,23 +86,6 @@ export function Projects() {
     return () => clearTimeout(timer);
   }, [filters]);
 
-  useEffect(() => {
-    if (!canManageProjects) return;
-    api
-      .get('/users', { params: { role: 'site_in_charge', is_active: 1 } })
-      .then((res) => setSiteInCharges(res.data.data || []))
-      .catch(() => showNotification('Failed to load Site In-Charges', 'error'));
-  }, []);
-
-  const toggleSiteInCharge = (id) => {
-    setFormData((prev) => ({
-      ...prev,
-      site_in_charge_ids: prev.site_in_charge_ids.includes(id)
-        ? prev.site_in_charge_ids.filter((x) => x !== id)
-        : [...prev.site_in_charge_ids, id],
-    }));
-  };
-
   const resetFilters = () => {
     setFilters({
       search: '',
@@ -131,7 +112,6 @@ export function Projects() {
       status: 'active',
       po_number: '',
       po_date: '',
-      site_in_charge_ids: [],
     });
     setIsModalOpen(true);
   };
@@ -153,7 +133,6 @@ export function Projects() {
         status: full.status,
         po_number: full.po_number || '',
         po_date: full.po_date || '',
-        site_in_charge_ids: full.site_in_charge_ids ? String(full.site_in_charge_ids).split(',').map(Number) : [],
       });
 
       setIsModalOpen(true);
@@ -580,27 +559,6 @@ export function Projects() {
                 />
               </div>
             </div>
-
-            <fieldset>
-              <legend className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Site In-Charges</legend>
-              {siteInCharges.length === 0 ? (
-                <p className="text-xs text-slate-500">No active Site In-Charge accounts yet. Add them under Team Users.</p>
-              ) : (
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {siteInCharges.map((person) => (
-                    <label key={person.id} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.site_in_charge_ids.includes(person.id)}
-                        onChange={() => toggleSiteInCharge(person.id)}
-                        className="w-4 h-4 rounded border-slate-300 accent-amber-500"
-                      />
-                      {person.name}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </fieldset>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">

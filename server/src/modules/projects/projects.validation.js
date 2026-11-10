@@ -3,7 +3,6 @@ import { z } from 'zod';
 // The form sends '' for a blank date, which MySQL rejects
 const optionalDate = z.string().nullable().optional().transform((v) => (v === '' ? null : v));
 const poNumber = z.string().max(100).nullable().optional();
-const siteInChargeIds = z.array(z.coerce.number().int().positive()).optional();
 
 export const createProjectSchema = z.object({
   body: z.object({
@@ -17,7 +16,6 @@ export const createProjectSchema = z.object({
     status: z.enum(['active', 'completed', 'on_hold']).default('active'),
     po_number: poNumber,
     po_date: optionalDate,
-    site_in_charge_ids: siteInChargeIds,
   }),
 });
 
@@ -33,6 +31,5 @@ export const updateProjectSchema = z.object({
     status: z.enum(['active', 'completed', 'on_hold']).optional(),
     po_number: poNumber,
     po_date: optionalDate,
-    site_in_charge_ids: siteInChargeIds,
   }),
 });

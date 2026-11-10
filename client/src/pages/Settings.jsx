@@ -152,7 +152,7 @@ export function Settings() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                  Phone Number (for WhatsApp Alerts & Payslips)
+                  Phone Number
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -165,7 +165,7 @@ export function Settings() {
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Enter with country code or 10-digit mobile to receive 1-click WhatsApp monthly payroll notifications.
+                  Enter with country code or 10-digit mobile for WhatsApp messages.
                 </p>
               </div>
 

@@ -40,6 +40,14 @@ export class AdvancesRepository {
       sql += ' AND a.status = ?';
       params.push(String(filters.status));
     }
+    if (filters.startDate) {
+      sql += ' AND a.allocation_date >= ?';
+      params.push(String(filters.startDate));
+    }
+    if (filters.endDate) {
+      sql += ' AND a.allocation_date <= ?';
+      params.push(String(filters.endDate));
+    }
 
     sql += ' ORDER BY a.id DESC';
 

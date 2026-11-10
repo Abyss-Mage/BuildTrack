@@ -5,6 +5,7 @@ import {
   createRequisition,
   updateRequisition,
   deleteRequisition,
+  exportRequisitions,
 } from './purchaseRequisitions.controller.js';
 import { requisitionSchema } from './purchaseRequisitions.validation.js';
 import { auth } from '../../middleware/auth.js';
@@ -15,6 +16,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/', getRequisitions);
+router.get('/export/:format', exportRequisitions);
 router.get('/:id', getRequisition);
 router.post('/', validate(requisitionSchema), createRequisition);
 router.put('/:id', validate(requisitionSchema), updateRequisition);

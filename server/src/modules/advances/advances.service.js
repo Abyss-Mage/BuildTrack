@@ -1,7 +1,7 @@
 import { AdvancesRepository } from './advances.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { assertSiteAccess, isAssigned } from '../../utils/siteScope.js';
 import { istNow } from '../../utils/time.js';
+import { UsersRepository } from '../users/users.repository.js';
 
 const rupees = (value) => `₹${Number(value).toLocaleString('en-IN')}`;
 
@@ -11,7 +11,7 @@ export class AdvancesService {
   }
 
   static async getSummary(user, filters = {}) {
-    const approved = await AdvancesRepository.findAll({ projectId: filters.projectId, status: 'approved' }, user);
+    const approved = await AdvancesRepository.findAll({ ...filters, status: 'approved' }, user);
     const totalAllocated = approved.reduce((sum, a) => sum + Number(a.amount), 0);
     const totalSubmitted = approved.reduce((sum, a) => sum + a.spent, 0);
     return {
@@ -25,8 +25,9 @@ export class AdvancesService {
     if (data.start_date > data.end_date) {
       throw ApiError.badRequest('Period start cannot be after period end');
     }
-    if (!(await isAssigned(data.site_in_charge_id, data.project_id))) {
-      throw ApiError.badRequest('This Site In-Charge is not assigned to the selected site.');
+    const person = await UsersRepository.findById(data.site_in_charge_id);
+    if (person?.role !== 'site_in_charge' || !person.is_active) {
+      throw ApiError.badRequest('Select an active Site In-Charge.');
     }
 
     // Only a Super Admin can approve, so their own allocation needs no second step
@@ -102,7 +103,6 @@ export class AdvancesService {
 
   /** Every expense rule that depends on the site and advance, shared by create, edit and submit. */
   static async assertExpenseAllowed({ projectId, advanceId, amount, status, excludeExpenseId = 0 }, user) {
-    await assertSiteAccess(user, projectId);
     if (user.role === 'site_in_charge' && !advanceId && status !== 'draft') {
       throw ApiError.badRequest('Select the advance this expense is paid from.');
     }

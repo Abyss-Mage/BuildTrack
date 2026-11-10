@@ -2,6 +2,7 @@ import { ExpensesService } from './expenses.service.js';
 import { processReceiptFiles, removeReceiptFiles } from '../../middleware/upload.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { logAudit } from '../../utils/auditLogger.js';
+import { sendTable } from '../../utils/tableExport.js';
 
 export const getAllExpenses = asyncHandler(async (req, res) => {
   const expenses = await ExpensesService.getAllExpenses(req.query, req.user);
@@ -101,4 +102,21 @@ export const deleteExpense = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json(result);
+});
+
+const EXPENSE_COLUMNS = [
+  { header: 'Ref No.', value: (e) => e.reference_no, width: 16 },
+  { header: 'Date', value: (e) => e.expense_date, width: 11 },
+  { header: 'Site', value: (e) => e.project_code, width: 9 },
+  { header: 'Category', value: (e) => e.category_name, width: 21 },
+  { header: 'Title', value: (e) => e.title, width: 23 },
+  { header: 'Vendor', value: (e) => e.vendor_name, width: 18 },
+  { header: 'Submitted By', value: (e) => e.submitter_name, width: 16 },
+  { header: 'Status', value: (e) => e.status, width: 10 },
+  { header: 'Amount', value: (e) => e.amount, width: 14, money: true },
+];
+
+export const exportExpenses = asyncHandler(async (req, res) => {
+  const expenses = await ExpensesService.getAllExpenses(req.query, req.user);
+  await sendTable(res, req.params.format, 'Expenses', EXPENSE_COLUMNS, expenses);
 });

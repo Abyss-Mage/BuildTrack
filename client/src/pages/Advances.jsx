@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
+import ExportButtons from '../components/ui/ExportButtons';
 import Modal from '../components/ui/Modal';
 import StatusBadge from '../components/ui/StatusBadge';
 import { PERIOD_TYPES, periodEndDate, toLocalDate } from '../utils/dateUtils';
@@ -33,7 +34,7 @@ export function Advances() {
   const [summary, setSummary] = useState({});
   const [projects, setProjects] = useState([]);
   const [siteInCharges, setSiteInCharges] = useState([]);
-  const [filters, setFilters] = useState({ projectId: '', status: '' });
+  const [filters, setFilters] = useState({ projectId: '', status: '', startDate: '', endDate: '' });
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +46,8 @@ export function Advances() {
       const params = {};
       if (filters.projectId) params.projectId = filters.projectId;
       if (filters.status) params.status = filters.status;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
       const res = await api.get('/advances', { params });
       setAdvances(res.data.data.advances || []);
       setSummary(res.data.data.summary || {});
@@ -71,10 +74,6 @@ export function Advances() {
         .catch(() => showNotification('Failed to load Site In-Charges', 'error'));
     }
   }, []);
-
-  const selectedProject = projects.find((p) => String(p.id) === String(form.project_id));
-  const assignedIds = selectedProject?.site_in_charge_ids ? String(selectedProject.site_in_charge_ids).split(',') : [];
-  const assignedPeople = siteInCharges.filter((person) => assignedIds.includes(String(person.id)));
 
   const changePeriod = (changes) => {
     setForm((prev) => {
@@ -126,18 +125,21 @@ export function Advances() {
             The balance falls only when an expense entry is submitted against the advance.
           </p>
         </div>
-        {canAllocate && (
-          <button
-            onClick={() => {
-              setForm(emptyForm());
-              setIsModalOpen(true);
-            }}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Allocate Advance</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButtons path="/advances" params={filters} fileName="Advances" />
+          {canAllocate && (
+            <button
+              onClick={() => {
+                setForm(emptyForm());
+                setIsModalOpen(true);
+              }}
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Allocate Advance</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -149,7 +151,7 @@ export function Advances() {
         ))}
       </div>
 
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <select
           aria-label="Filter by site"
           value={filters.projectId}
@@ -174,6 +176,24 @@ export function Advances() {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
+        <input
+          type="date"
+          aria-label="Allocated from date"
+          title="Allocated from"
+          value={filters.startDate}
+          max={filters.endDate || undefined}
+          onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+          className={inputClass}
+        />
+        <input
+          type="date"
+          aria-label="Allocated to date"
+          title="Allocated to"
+          value={filters.endDate}
+          min={filters.startDate || undefined}
+          onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+          className={inputClass}
+        />
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -281,8 +301,8 @@ export function Advances() {
                   onChange={(e) => setForm({ ...form, site_in_charge_id: e.target.value })}
                   className={inputClass}
                 >
-                  <option value="">{form.project_id && !assignedPeople.length ? 'None assigned to this site' : 'Select Person'}</option>
-                  {assignedPeople.map((person) => (
+                  <option value="">Select Person</option>
+                  {siteInCharges.map((person) => (
                     <option key={person.id} value={person.id}>
                       {person.name}
                     </option>

@@ -1,7 +1,7 @@
 import { ExpensesRepository } from './expenses.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { removeReceiptFiles } from '../../middleware/upload.js';
-import { assertSiteAccess } from '../../utils/siteScope.js';
+import { assertOwnRecord } from '../../utils/siteScope.js';
 import { AdvancesService } from '../advances/advances.service.js';
 
 export class ExpensesService {
@@ -12,7 +12,7 @@ export class ExpensesService {
   static async getExpenseById(id, user) {
     const expense = await ExpensesRepository.findById(id);
     if (!expense) throw ApiError.notFound('Expense record not found');
-    await assertSiteAccess(user, expense.project_id);
+    assertOwnRecord(user, expense.submitted_by);
     return expense;
   }
 

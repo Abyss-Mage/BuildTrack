@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
+import ExportButtons from '../components/ui/ExportButtons';
 import StatusBadge from '../components/ui/StatusBadge';
 import ExpenseFormModal from './ExpenseFormModal';
 import ExpenseDetailModal from './ExpenseDetailModal';
@@ -203,18 +204,21 @@ export function Expenses() {
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => {
-              setEditingExpense(null);
-              setIsFormModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all self-start sm:self-auto"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Record Expense</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          <ExportButtons path="/expenses" params={filters} fileName="Expenses" />
+          {canCreate && (
+            <button
+              onClick={() => {
+                setEditingExpense(null);
+                setIsFormModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-slate-950 font-bold text-xs sm:text-sm shadow-md transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Record Expense</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter Toolbar */}

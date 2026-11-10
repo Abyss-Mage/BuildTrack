@@ -2,6 +2,7 @@ import { PurchaseRequisitionsService } from './purchaseRequisitions.service.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { ApiResponse } from '../../utils/ApiResponse.js';
 import { logAudit } from '../../utils/auditLogger.js';
+import { sendTable } from '../../utils/tableExport.js';
 
 const audit = (req, action, requisition) =>
   logAudit(req, {
@@ -35,4 +36,19 @@ export const deleteRequisition = asyncHandler(async (req, res) => {
   const requisition = await PurchaseRequisitionsService.delete(req.params.id, req.user);
   await audit(req, 'PR_DELETE', requisition);
   return ApiResponse.success(res, null, 'Purchase requisition deleted');
+});
+
+const REQUISITION_COLUMNS = [
+  { header: 'PR No.', value: (pr) => pr.pr_no, width: 26 },
+  { header: 'PR Date', value: (pr) => pr.pr_date, width: 12 },
+  { header: 'Site', value: (pr) => `[${pr.project_code}] ${pr.project_name}`, width: 22 },
+  { header: 'Priority', value: (pr) => pr.priority, width: 10 },
+  { header: 'Requested By', value: (pr) => pr.requested_by_name, width: 18 },
+  { header: 'Items', value: (pr) => pr.item_count, width: 8 },
+  { header: 'Total Cost', value: (pr) => pr.total_cost, width: 16, money: true },
+];
+
+export const exportRequisitions = asyncHandler(async (req, res) => {
+  const requisitions = await PurchaseRequisitionsService.getAll(req.query, req.user);
+  await sendTable(res, req.params.format, 'Purchase Requisitions', REQUISITION_COLUMNS, requisitions);
 });

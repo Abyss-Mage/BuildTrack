@@ -484,7 +484,7 @@ export function Users() {
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               >
                 <option value="site_in_charge">Site In-Charge (Assigned Site Expenses)</option>
-                <option value="accountant">CA / Accountant (Accounts & Payroll)</option>
+                <option value="accountant">CA / Accountant (Accounts)</option>
                 <option value="admin">Super Admin (Full Company Access)</option>
               </select>
             </div>
@@ -512,7 +512,7 @@ export function Users() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Phone Number (for WhatsApp Payroll Slips)
+                Phone Number
               </label>
               <input
                 type="tel"
@@ -589,7 +589,7 @@ export function Users() {
                 className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none"
               >
                 <option value="site_in_charge">Site In-Charge (Assigned Site Expenses)</option>
-                <option value="accountant">CA / Accountant (Accounts & Payroll)</option>
+                <option value="accountant">CA / Accountant (Accounts)</option>
                 <option value="admin">Super Admin (Full Company Access)</option>
               </select>
             </div>
@@ -617,7 +617,7 @@ export function Users() {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Phone Number (for WhatsApp Payroll Slips)
+                Phone Number
               </label>
               <input
                 type="tel"

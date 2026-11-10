@@ -1,7 +1,7 @@
 import db from '../../config/database.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { istNow } from '../../utils/time.js';
-import { siteScope } from '../../utils/siteScope.js';
+import { ownScope } from '../../utils/siteScope.js';
 
 export class ExpensesRepository {
   /**
@@ -48,7 +48,7 @@ export class ExpensesRepository {
       JOIN users u ON e.submitted_by = u.id
       LEFT JOIN users app ON e.approved_by = app.id
       LEFT JOIN users proc ON e.processed_by = proc.id
-      WHERE 1=1 ${siteScope(user, 'e.project_id')}
+      WHERE 1=1 ${ownScope(user, 'e.submitted_by')}
     `;
 
     const params = [];

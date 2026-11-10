@@ -1,8 +1,7 @@
 import { WageSheetsRepository } from './wageSheets.repository.js';
-import { cleanPhoneNumber } from '../payroll/payroll.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { parseWageSheet } from '../../utils/wageSheetParser.js';
-import { sendWhatsAppTemplate, whatsappConfigured } from '../../utils/whatsapp.js';
+import { cleanPhoneNumber, sendWhatsAppTemplate, whatsappConfigured } from '../../utils/whatsapp.js';
 
 const nameKey = (name, father) => `${name}|${father}`.toLowerCase();
 

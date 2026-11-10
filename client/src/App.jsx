@@ -13,7 +13,6 @@ import ProjectDetail from './pages/ProjectDetail';
 import Expenses from './pages/Expenses';
 import Approvals from './pages/Approvals';
 import Accounts from './pages/Accounts';
-import Payroll from './pages/Payroll';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import AuditLogs from './pages/AuditLogs';
@@ -37,6 +36,12 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+// Site In-Charges have no dashboard; their home is Expenses
+function Home() {
+  const { user } = useAuthStore();
+  return user?.role === 'site_in_charge' ? <Navigate to="/expenses" replace /> : <Dashboard />;
+}
+
 export function App() {
   return (
     <BrowserRouter>
@@ -51,9 +56,23 @@ export function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
+          <Route path="/" element={<Home />} />
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
+                <Projects />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects/:id"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
+                <ProjectDetail />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/expenses" element={<Expenses />} />
 
           {/* Approvals: Accountant, Admin */}
@@ -79,15 +98,6 @@ export function App() {
           <Route path="/advances" element={<Advances />} />
           <Route path="/purchase-requisitions" element={<PurchaseRequisitions />} />
 
-          {/* Payroll: Accountant and Super Admin */}
-          <Route
-            path="/payroll"
-            element={
-              <ProtectedRoute allowedRoles={['admin', 'accountant']}>
-                <Payroll />
-              </ProtectedRoute>
-            }
-          />
           <Route
             path="/wage-sheets"
             element={
