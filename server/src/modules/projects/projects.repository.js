@@ -1,25 +1,18 @@
 import db from '../../config/database.js';
-import { siteScope } from '../../utils/siteScope.js';
-
-const ASSIGNED_IDS = '(SELECT GROUP_CONCAT(pa.user_id) FROM project_assignments pa WHERE pa.project_id = p.id) as site_in_charge_ids';
 
 export class ProjectsRepository {
-  /**
-   * Site In-Charges see only their assigned sites; other roles see all.
-   * Multi-criteria filtering supported (status, search, budgetMin, budgetMax, utilization, sortBy).
-   */
+  // Every role sees every site. Filters: status, search, budgetMin, budgetMax, utilization, sortBy
   static async findAll(user, filters = {}) {
     let sql = `
       SELECT
         p.*,
         u.name as creator_name,
-        ${ASSIGNED_IDS},
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent,
         COALESCE(COUNT(DISTINCT e.id), 0) as expense_count
       FROM projects p
       LEFT JOIN users u ON p.created_by = u.id
       LEFT JOIN expenses e ON p.id = e.project_id
-      WHERE 1=1 ${siteScope(user, 'p.id')}
+      WHERE 1=1
     `;
 
     const params = [];
@@ -76,7 +69,6 @@ export class ProjectsRepository {
       `SELECT
         p.*,
         u.name as creator_name,
-        ${ASSIGNED_IDS},
         COALESCE(SUM(CASE WHEN e.status IN ('approved', 'processed') THEN e.amount ELSE 0 END), 0) as total_spent,
         COALESCE(COUNT(DISTINCT e.id), 0) as expense_count
       FROM projects p
@@ -90,16 +82,6 @@ export class ProjectsRepository {
 
   static async findByCode(code) {
     return db.getOne('SELECT * FROM projects WHERE code = ?', [code]);
-  }
-
-  static async setSiteInCharges(projectId, userIds) {
-    await db.execute('DELETE FROM project_assignments WHERE project_id = ?', [projectId]);
-    for (const userId of new Set(userIds)) {
-      await db.execute(
-        "INSERT INTO project_assignments (project_id, user_id) SELECT ?, id FROM users WHERE id = ? AND role = 'site_in_charge'",
-        [projectId, userId]
-      );
-    }
   }
 
   static async create(data, createdById) {
@@ -121,7 +103,6 @@ export class ProjectsRepository {
       ]
     );
 
-    if (data.site_in_charge_ids) await this.setSiteInCharges(id, data.site_in_charge_ids);
     return this.findById(id);
   }
 
@@ -142,7 +123,6 @@ export class ProjectsRepository {
       await db.execute(`UPDATE projects SET ${fields.join(', ')} WHERE id = ?`, values);
     }
 
-    if (data.site_in_charge_ids) await this.setSiteInCharges(id, data.site_in_charge_ids);
     return this.findById(id);
   }
 }

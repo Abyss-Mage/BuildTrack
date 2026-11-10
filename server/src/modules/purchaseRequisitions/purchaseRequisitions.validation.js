@@ -19,6 +19,7 @@ const item = z.object({
 
 export const requisitionSchema = z.object({
   body: z.object({
+    pr_no: z.string().trim().max(50).nullable().optional().transform((v) => v || null),
     pr_date: date,
     project_id: z.coerce.number().int().positive('Select a site'),
     site_description: optionalText(255),

@@ -124,44 +124,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
--- Construction Weekly Payroll System
-CREATE TABLE IF NOT EXISTS payroll (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  payroll_period VARCHAR(50) NOT NULL,
-  payroll_month VARCHAR(7) DEFAULT NULL,
-  start_date DATE DEFAULT NULL,
-  end_date DATE DEFAULT NULL,
-  base_salary DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
-  allowances DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
-  deductions DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
-  net_salary DECIMAL(15, 2) NOT NULL DEFAULT 0.00,
-  status ENUM('draft', 'pending', 'paid') NOT NULL DEFAULT 'pending',
-  payment_method ENUM('bank_transfer', 'upi', 'cash', 'cheque') NOT NULL DEFAULT 'bank_transfer',
-  payment_date DATE DEFAULT NULL,
-  payment_reference VARCHAR(100) DEFAULT NULL,
-  notes TEXT DEFAULT NULL,
-  whatsapp_sent_at DATETIME DEFAULT NULL,
-  created_by INT NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_user_period (user_id, payroll_period),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT,
-  INDEX idx_payroll_period (payroll_period),
-  INDEX idx_payroll_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Which sites each Site In-Charge can access
-CREATE TABLE IF NOT EXISTS project_assignments (
-  project_id INT NOT NULL,
-  user_id INT NOT NULL,
-  PRIMARY KEY (project_id, user_id),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  INDEX idx_assignment_user (user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- Money handed to a Site In-Charge, spent down by expense entries
 CREATE TABLE IF NOT EXISTS advances (
   id INT AUTO_INCREMENT PRIMARY KEY,

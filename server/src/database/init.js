@@ -116,40 +116,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Construction Weekly Payroll System
-CREATE TABLE IF NOT EXISTS payroll (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  payroll_period TEXT NOT NULL,
-  payroll_month TEXT,
-  start_date TEXT,
-  end_date TEXT,
-  base_salary REAL NOT NULL DEFAULT 0.0,
-  allowances REAL NOT NULL DEFAULT 0.0,
-  deductions REAL NOT NULL DEFAULT 0.0,
-  net_salary REAL NOT NULL DEFAULT 0.0,
-  status TEXT NOT NULL DEFAULT 'pending',
-  payment_method TEXT NOT NULL DEFAULT 'bank_transfer',
-  payment_date TEXT,
-  payment_reference TEXT,
-  notes TEXT,
-  whatsapp_sent_at TEXT,
-  created_by INTEGER NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  UNIQUE(user_id, payroll_period),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE RESTRICT
-);
-
-CREATE TABLE IF NOT EXISTS project_assignments (
-  project_id INTEGER NOT NULL,
-  user_id INTEGER NOT NULL,
-  PRIMARY KEY (project_id, user_id),
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS advances (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   project_id INTEGER NOT NULL,
@@ -295,9 +261,6 @@ export async function initializeDatabase() {
     { table: 'expenses', col: 'processed_by', def: 'INTEGER DEFAULT NULL' },
     { table: 'expenses', col: 'processed_at', def: 'TEXT DEFAULT NULL' },
     { table: 'expenses', col: 'payment_reference', def: 'TEXT DEFAULT NULL' },
-    { table: 'payroll', col: 'payroll_period', def: 'TEXT' },
-    { table: 'payroll', col: 'start_date', def: 'TEXT' },
-    { table: 'payroll', col: 'end_date', def: 'TEXT' },
     { table: 'projects', col: 'po_number', def: 'VARCHAR(100) DEFAULT NULL' },
     { table: 'projects', col: 'po_date', def: 'DATE DEFAULT NULL' },
     { table: 'expenses', col: 'advance_id', def: 'INT DEFAULT NULL' },
@@ -327,13 +290,6 @@ export async function initializeDatabase() {
   await db.execute("UPDATE users SET role = 'site_in_charge' WHERE role IN ('project_manager', 'site_engineer')");
   if (oldRoleColumn) {
     await db.execute("ALTER TABLE users MODIFY role ENUM('admin', 'site_in_charge', 'accountant') NOT NULL DEFAULT 'site_in_charge'");
-  }
-
-  // Backfill payroll_period from payroll_month if any exists
-  try {
-    await db.execute("UPDATE payroll SET payroll_period = payroll_month WHERE payroll_period IS NULL AND payroll_month IS NOT NULL");
-  } catch (e) {
-    // safe to ignore
   }
 
   // User updates used to log the new password in plain text: strip it from old audit rows

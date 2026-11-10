@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { useUiStore } from '../store/uiStore';
+import ExportButtons from '../components/ui/ExportButtons';
 import Modal from '../components/ui/Modal';
 import { toLocalDate } from '../utils/dateUtils';
-import { ClipboardList, Loader2, PlusCircle, Search, Trash2 } from 'lucide-react';
+import { ClipboardList, Eye, Loader2, Pencil, PlusCircle, Search, Trash2 } from 'lucide-react';
 
 const inputClass =
   'w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none';
@@ -24,6 +25,7 @@ const SIGN_OFFS = [
 const blankItem = () => ({ item: '', description: '', unit: '', quantity: '', required_date: '', vendor: '', rate: '', remarks: '' });
 
 const emptyForm = (userId) => ({
+  pr_no: '',
   pr_date: toLocalDate(),
   project_id: '',
   site_description: '',
@@ -53,6 +55,7 @@ export function PurchaseRequisitions() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [viewing, setViewing] = useState(false);
   const [form, setForm] = useState(() => emptyForm(user?.id));
 
   const load = async () => {
@@ -85,21 +88,24 @@ export function PurchaseRequisitions() {
   }, []);
 
   const canChange = (requisition) => user?.role !== 'site_in_charge' || requisition.created_by === user?.id;
-  const readOnly = Boolean(editing) && !canChange(editing);
+  const readOnly = viewing || (Boolean(editing) && !canChange(editing));
 
   const openNew = () => {
     setEditing(null);
+    setViewing(false);
     setForm(emptyForm(user?.id));
     setIsModalOpen(true);
   };
 
-  const openExisting = async (id) => {
+  const openExisting = async (id, view) => {
     try {
       const { data } = await api.get(`/purchase-requisitions/${id}`);
       const pr = data.data;
       setEditing(pr);
+      setViewing(view);
       const text = (value) => value ?? '';
       setForm({
+        pr_no: pr.pr_no,
         pr_date: pr.pr_date,
         project_id: pr.project_id,
         site_description: text(pr.site_description),
@@ -173,13 +179,16 @@ export function PurchaseRequisitions() {
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">Create and record purchase requirements for each site.</p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md"
-        >
-          <PlusCircle className="w-4 h-4" />
-          <span>New Requisition</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButtons path="/purchase-requisitions" params={filters} fileName="Purchase_Requisitions" />
+          <button
+            onClick={openNew}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-950 bg-brand-500 hover:bg-brand-600 rounded-xl shadow-md"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>New Requisition</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -232,7 +241,7 @@ export function PurchaseRequisitions() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {requisitions.map((pr) => (
-                  <tr key={pr.id} onClick={() => openExisting(pr.id)} className="cursor-pointer hover:bg-slate-50/60">
+                  <tr key={pr.id} onClick={() => openExisting(pr.id, true)} className="cursor-pointer hover:bg-slate-50/60">
                     <td className="py-3 px-4 font-mono font-bold text-slate-900 whitespace-nowrap">{pr.pr_no}</td>
                     <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{pr.pr_date}</td>
                     <td className="py-3 px-4 text-slate-700">
@@ -241,9 +250,34 @@ export function PurchaseRequisitions() {
                     <td className="py-3 px-4 text-slate-600">{pr.requested_by_name || '-'}</td>
                     <td className="py-3 px-4 text-right text-slate-700">{pr.item_count}</td>
                     <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatINR(pr.total_cost)}</td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <button
+                        title="View details"
+                        aria-label={`View ${pr.pr_no}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openExisting(pr.id, true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
                       {canChange(pr) && (
                         <button
+                          title="Edit"
+                          aria-label={`Edit ${pr.pr_no}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openExisting(pr.id, false);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      )}
+                      {canChange(pr) && (
+                        <button
+                          title="Delete"
                           aria-label={`Delete ${pr.pr_no}`}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -267,7 +301,7 @@ export function PurchaseRequisitions() {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title={editing ? `Purchase Requisition ${editing.pr_no}` : 'New Purchase Requisition'}
+          title={editing ? `${readOnly ? 'View' : 'Edit'} Purchase Requisition ${editing.pr_no}` : 'New Purchase Requisition'}
           maxWidth="max-w-6xl"
         >
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -280,10 +314,19 @@ export function PurchaseRequisitions() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
-                  <span className={labelClass}>Document No. / PR No.</span>
-                  <p className="px-3 py-2 text-xs font-mono text-slate-700 bg-slate-50 rounded-xl border border-slate-200">
-                    {editing ? `${editing.document_no} • ${editing.pr_no}` : 'Generated when saved'}
-                  </p>
+                  <label className={labelClass} htmlFor="pr-no">Document No. / PR No.</label>
+                  <input
+                    id="pr-no"
+                    type="text"
+                    maxLength={50}
+                    value={form.pr_no}
+                    onChange={(e) => setForm({ ...form, pr_no: e.target.value })}
+                    placeholder="Leave blank to auto-generate"
+                    className={`${inputClass} font-mono`}
+                  />
+                  {editing && editing.document_no !== editing.pr_no && (
+                    <p className="text-[11px] text-slate-400 mt-1 font-mono">Doc No. {editing.document_no}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass} htmlFor="pr-date">PR Date *</label>

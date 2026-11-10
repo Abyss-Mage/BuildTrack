@@ -1,6 +1,6 @@
 import { PurchaseRequisitionsRepository } from './purchaseRequisitions.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { assertSiteAccess } from '../../utils/siteScope.js';
+import { assertOwnRecord } from '../../utils/siteScope.js';
 
 // Amount is always worked out here so a tampered form cannot change the total
 const withAmounts = (items) =>
@@ -18,12 +18,11 @@ export class PurchaseRequisitionsService {
   static async getById(id, user) {
     const requisition = await PurchaseRequisitionsRepository.findById(id);
     if (!requisition) throw ApiError.notFound('Purchase requisition not found');
-    await assertSiteAccess(user, requisition.project_id);
+    assertOwnRecord(user, requisition.created_by);
     return requisition;
   }
 
   static async create(data, user) {
-    await assertSiteAccess(user, data.project_id);
     return PurchaseRequisitionsRepository.create(data, withAmounts(data.items), user.id);
   }
 
@@ -37,7 +36,6 @@ export class PurchaseRequisitionsService {
 
   static async update(id, data, user) {
     await this.getEditable(id, user);
-    await assertSiteAccess(user, data.project_id);
     return PurchaseRequisitionsRepository.update(id, data, withAmounts(data.items));
   }
 

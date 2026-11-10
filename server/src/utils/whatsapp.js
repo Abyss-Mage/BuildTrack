@@ -28,3 +28,10 @@ export async function sendWhatsAppTemplate(to, parameters) {
     throw new Error(body.error?.message || `WhatsApp API returned ${response.status}`);
   }
 }
+
+/** Digits only; a bare 10-digit number gets India's 91 prefix. */
+export function cleanPhoneNumber(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  return digits.length === 10 ? `91${digits}` : digits;
+}

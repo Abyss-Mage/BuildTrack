@@ -6,6 +6,7 @@ import {
   updateExpense,
   submitExpense,
   deleteExpense,
+  exportExpenses,
 } from './expenses.controller.js';
 import { createExpenseSchema, updateExpenseSchema } from './expenses.validation.js';
 import { auth } from '../../middleware/auth.js';
@@ -18,6 +19,7 @@ const router = Router();
 router.use(auth);
 
 router.get('/', getAllExpenses);
+router.get('/export/:format', exportExpenses);
 router.get('/:id', getExpenseById);
 
 router.post(

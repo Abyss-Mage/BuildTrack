@@ -14,7 +14,6 @@ import {
   X,
   LogOut,
   Landmark,
-  Banknote,
   ShieldAlert,
   Settings as SettingsIcon,
   Wallet,
@@ -29,14 +28,13 @@ export function Sidebar() {
   const isRole = (roles) => roles.includes(user?.role);
 
   const navItems = [
-    { name: 'Dashboard', to: '/', icon: LayoutDashboard, roles: ['admin', 'site_in_charge', 'accountant'] },
-    { name: 'Projects', to: '/projects', icon: Building2, roles: ['admin', 'site_in_charge', 'accountant'] },
+    { name: 'Dashboard', to: '/', icon: LayoutDashboard, roles: ['admin', 'accountant'] },
+    { name: 'Projects', to: '/projects', icon: Building2, roles: ['admin', 'accountant'] },
     { name: 'Expenses', to: '/expenses', icon: Receipt, roles: ['admin', 'site_in_charge', 'accountant'] },
     { name: 'Advances', to: '/advances', icon: Wallet, roles: ['admin', 'site_in_charge', 'accountant'] },
     { name: 'Purchase Requisitions', to: '/purchase-requisitions', icon: ClipboardList, roles: ['admin', 'site_in_charge', 'accountant'] },
     { name: 'Approvals', to: '/approvals', icon: CheckSquare, roles: ['admin', 'accountant'] },
     { name: 'Accounts & Payouts', to: '/accounts', icon: Landmark, roles: ['admin', 'accountant'] },
-    { name: 'Payroll & Wages', to: '/payroll', icon: Banknote, roles: ['admin', 'accountant'] },
     { name: 'Wage Sheets (Excel)', to: '/wage-sheets', icon: FileSpreadsheet, roles: ['admin', 'accountant'] },
     { name: 'Reports & P&L', to: '/reports', icon: BarChart3, roles: ['admin', 'accountant'] },
     { name: 'Team Users', to: '/users', icon: Users, roles: ['admin'] },

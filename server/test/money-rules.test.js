@@ -23,7 +23,6 @@ const { ExpensesRepository } = await import('../src/modules/expenses/expenses.re
 const { ExpensesService } = await import('../src/modules/expenses/expenses.service.js');
 const { AccountsRepository } = await import('../src/modules/accounts/accounts.repository.js');
 const { ApprovalsService } = await import('../src/modules/approvals/approvals.service.js');
-const { PayrollService } = await import('../src/modules/payroll/payroll.service.js');
 const { AdvancesService } = await import('../src/modules/advances/advances.service.js');
 const { PurchaseRequisitionsService } = await import('../src/modules/purchaseRequisitions/purchaseRequisitions.service.js');
 const { WageSheetsService } = await import('../src/modules/wageSheets/wageSheets.service.js');
@@ -40,7 +39,7 @@ const outsider = await makeUser('outsider', 'site_in_charge');
 
 const makeProject = (code) =>
   ProjectsRepository.create(
-    { name: `Site ${code}`, code, location: 'Pune', total_budget: 100000, po_number: 'PO-1', po_date: '2026-10-01', site_in_charge_ids: [inCharge.id] },
+    { name: `Site ${code}`, code, location: 'Pune', total_budget: 100000, po_number: 'PO-1', po_date: '2026-10-01' },
     admin.id
   );
 const project = await makeProject('S1');
@@ -64,13 +63,9 @@ const newAdvance = (amount, by = admin) =>
     by
   );
 
-const wages = (start_date, end_date, extra = {}) =>
-  PayrollService.createPayroll({ user_id: outsider.id, start_date, end_date, base_salary: 1000, allowances: 200, deductions: 50, ...extra }, accountant.id);
-
-test('project keeps its PO details and assigned Site In-Charge', () => {
+test('project keeps its PO details', () => {
   assert.equal(project.po_number, 'PO-1');
   assert.equal(project.po_date, '2026-10-01');
-  assert.equal(project.site_in_charge_ids, String(inCharge.id));
 });
 
 test('old Project Manager and Site Engineer accounts become Site In-Charge', async () => {
@@ -164,6 +159,16 @@ test('an expense above the remaining balance is blocked; drafts and rejections d
   assert.equal(row.remaining, 1000);
 });
 
+test('advances and their totals filter by allocation date', async () => {
+  await newAdvance(100);
+  const inside = { startDate: '2026-11-01', endDate: '2026-11-01' };
+  const outside = { startDate: '2026-11-02' };
+  assert.ok((await AdvancesService.getAdvances(inside, admin)).length > 0);
+  assert.equal((await AdvancesService.getAdvances(outside, admin)).length, 0);
+  assert.equal((await AdvancesService.getSummary(admin, outside)).totalAllocated, 0);
+  assert.ok((await AdvancesService.getSummary(admin, inside)).totalAllocated > 0);
+});
+
 test('an approved advance expense is settled and never reaches the payout queue', async () => {
   const advance = await newAdvance(500);
   const { id } = await ExpensesService.createExpense(expenseData(200, advance.id), [], inCharge);
@@ -172,46 +177,17 @@ test('an approved advance expense is settled and never reaches the payout queue'
   assert.ok(!queue.some((e) => e.id === id));
 });
 
-test('a Site In-Charge must use an advance and stay inside their own sites', async () => {
+test('a Site In-Charge must use their own advance and only sees their own expenses', async () => {
+  const advance = await newAdvance(100);
   await assert.rejects(ExpensesService.createExpense(expenseData(10, undefined), [], inCharge), { statusCode: 400 });
-  await assert.rejects(ExpensesService.createExpense(expenseData(10, undefined), [], outsider), { statusCode: 403 });
+  await assert.rejects(ExpensesService.createExpense(expenseData(10, advance.id), [], outsider), { statusCode: 403 });
 
+  // Any site is open, but another person's expense is not
   const other = await makeProject('S2');
-  await db.execute('DELETE FROM project_assignments WHERE project_id = ?', [other.id]);
   const hidden = await ExpensesRepository.create({ ...expenseData(10), project_id: other.id }, [], admin.id);
   await assert.rejects(ExpensesService.getExpenseById(hidden.id, inCharge), { statusCode: 403 });
   assert.ok(!(await ExpensesService.getAllExpenses({}, inCharge)).some((e) => e.id === hidden.id));
-});
-
-test('net pay is base plus allowances minus deductions', async () => {
-  assert.equal((await wages('2026-01-05', '2026-01-11')).net_salary, 1150);
-});
-
-test('editing wage dates updates the month and label and refuses overlaps', async () => {
-  await wages('2026-02-02', '2026-02-08');
-  const record = await wages('2026-02-09', '2026-02-15', { payroll_period: 'Site A' });
-  assert.equal(record.payroll_period, 'Site A (2026-02-09 to 2026-02-15)');
-
-  await assert.rejects(PayrollService.updatePayroll(record.id, { start_date: '2026-02-08' }, accountant), { statusCode: 409 });
-
-  const moved = await PayrollService.updatePayroll(
-    record.id,
-    { start_date: '2026-03-02', end_date: '2026-03-08', payroll_period: record.payroll_period },
-    accountant
-  );
-  assert.equal(moved.payroll_period, 'Site A (2026-03-02 to 2026-03-08)');
-  assert.equal(moved.payroll_month, '2026-03');
-});
-
-test('paid wages are locked except for an admin, and cannot be paid twice', async () => {
-  const { id } = await wages('2026-04-06', '2026-04-12');
-  await PayrollService.markAsPaid(id, { payment_reference: 'UTR1' });
-
-  await assert.rejects(PayrollService.markAsPaid(id, { payment_reference: 'UTR2' }), { statusCode: 400 });
-  await assert.rejects(PayrollService.updatePayroll(id, { base_salary: 1 }, accountant), { statusCode: 403 });
-  await assert.rejects(PayrollService.deletePayroll(id, accountant), { statusCode: 403 });
-
-  assert.equal((await PayrollService.updatePayroll(id, { notes: 'Fixed' }, admin)).notes, 'Fixed');
+  assert.ok((await ExpensesService.getAllExpenses({}, admin)).some((e) => e.id === hidden.id));
 });
 
 test('purchase requisition numbers follow the financial year and amounts are worked out on the server', async () => {
@@ -234,7 +210,21 @@ test('purchase requisition numbers follow the financial year and amounts are wor
 
   const edited = await PurchaseRequisitionsService.update(first.id, { ...data, items: [data.items[0]] }, inCharge);
   assert.equal(edited.items.length, 1);
-  await assert.rejects(PurchaseRequisitionsService.create(data, outsider), { statusCode: 403 });
+  // Another Site In-Charge can raise one for the same site but cannot open or list this one
+  await PurchaseRequisitionsService.create(data, outsider);
+  await assert.rejects(PurchaseRequisitionsService.getById(first.id, outsider), { statusCode: 403 });
+  assert.ok(!(await PurchaseRequisitionsService.getAll({}, outsider)).some((pr) => pr.id === first.id));
+
+  // A typed number is kept as-is, must be unique, and odd endings do not break auto-numbering
+  const typed = await PurchaseRequisitionsService.create({ ...data, pr_no: 'SSPSPL/PR/26-27/10/MANUAL' }, inCharge);
+  assert.equal(typed.pr_no, 'SSPSPL/PR/26-27/10/MANUAL');
+  await assert.rejects(PurchaseRequisitionsService.create({ ...data, pr_no: typed.pr_no }, inCharge), { statusCode: 409 });
+  assert.equal((await PurchaseRequisitionsService.create(data, inCharge)).pr_no, 'SSPSPL/PR/26-27/10/004');
+
+  await assert.rejects(PurchaseRequisitionsService.update(first.id, { ...data, pr_no: typed.pr_no }, inCharge), { statusCode: 409 });
+  assert.equal((await PurchaseRequisitionsService.getById(first.id, inCharge)).items.length, 1);
+  const renamed = await PurchaseRequisitionsService.update(first.id, { ...data, pr_no: 'PR-77' }, inCharge);
+  assert.equal(renamed.pr_no, 'PR-77');
 });
 
 async function workbook(fill) {
@@ -318,3 +308,21 @@ test('WhatsApp sends once per employee, records failures and retries only those'
   assert.equal(calls.length, 1);
 });
 
+
+test('list exports total money columns and refuse unknown formats', async () => {
+  const { tableToExcel, tableToPdf, sendTable } = await import('../src/utils/tableExport.js');
+  const columns = [
+    { header: 'Name', value: (r) => r.name, width: 10 },
+    { header: 'Amount', value: (r) => r.amount, width: 10, money: true },
+  ];
+  const rows = [{ name: 'A', amount: 100.5 }, { name: 'B', amount: '49.5' }];
+
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(await tableToExcel('Test', columns, rows));
+  const sheet = wb.worksheets[0];
+  assert.deepEqual(sheet.getRow(4).values.slice(1), ['TOTAL', 150]);
+
+  const pdf = await tableToPdf('Test', columns, rows);
+  assert.equal(pdf.subarray(0, 4).toString(), '%PDF');
+  await assert.rejects(sendTable({}, 'csv', 'Test', columns, rows), { statusCode: 400 });
+});

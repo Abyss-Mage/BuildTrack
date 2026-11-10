@@ -209,9 +209,6 @@ export function AuditLogs() {
               <option value="EXPENSE_APPROVE">Expense Approved</option>
               <option value="EXPENSE_REJECT">Expense Rejected</option>
               <option value="EXPENSE_PAYOUT_PROCESSED">Payout Disbursed</option>
-              <option value="PAYROLL_CREATE">Payroll Created</option>
-              <option value="PAYROLL_SETTLE">Payroll Settled</option>
-              <option value="PAYROLL_WHATSAPP_BROADCAST">WhatsApp Broadcast</option>
               <option value="PROJECT_CREATE">Project Created</option>
               <option value="ROLE_LIMITS_UPDATE">Approval Limits Updated</option>
               <option value="USER_CREATE">User Created</option>
@@ -227,7 +224,6 @@ export function AuditLogs() {
             >
               <option value="">All Entities</option>
               <option value="expense">Expense</option>
-              <option value="payroll">Payroll</option>
               <option value="project">Project</option>
               <option value="user">User</option>
               <option value="auth">Auth</option>

@@ -1,6 +1,5 @@
 import { ProjectsRepository } from './projects.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { assertSiteAccess } from '../../utils/siteScope.js';
 
 export class ProjectsService {
   static async getAllProjects(user, filters = {}) {
@@ -8,7 +7,6 @@ export class ProjectsService {
   }
 
   static async getProjectById(id, user) {
-    await assertSiteAccess(user, id);
     const project = await ProjectsRepository.findById(id);
     if (!project) throw ApiError.notFound('Project not found');
     return project;

@@ -328,7 +328,7 @@ export function WageSheets() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[1200px]">
-              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider whitespace-nowrap">
                 <tr>
                   <th className="py-3 px-3">Employee</th>
                   <th className="py-3 px-3">Designation</th>
@@ -346,12 +346,13 @@ export function WageSheets() {
                   <th className="py-3 px-3">WhatsApp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 whitespace-nowrap">
                 {rows.map((row) => (
                   <tr key={row.id}>
                     <td className="py-2 px-3">
                       <span className="font-semibold text-slate-900 block">{row.employee_name}</span>
-                      <span className="text-slate-500">S/o {row.father_name}{row.uan ? ` • UAN ${row.uan}` : ''}</span>
+                      <span className="text-slate-500 block">S/o {row.father_name}</span>
+                      {row.uan && <span className="text-slate-400 block">UAN {row.uan}</span>}
                     </td>
                     <td className="py-2 px-3 text-slate-700">{row.designation}</td>
                     <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
@@ -370,7 +371,7 @@ export function WageSheets() {
                     <td className="py-2 px-3 text-right font-mono">{formatINR(row.pf_deduction)}</td>
                     <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{formatINR(row.net_payable)}</td>
                     <td className="py-2 px-3 text-right font-mono text-emerald-700">{formatINR(row.paid)}</td>
-                    <td className="py-2 px-3 text-slate-600 max-w-[160px]">
+                    <td className="py-2 px-3 text-slate-600 whitespace-normal min-w-[120px] max-w-[200px]">
                       {row.whatsapp_sent_at ? 'Sent' : row.whatsapp_error ? <span className="text-rose-600">{row.whatsapp_error}</span> : '-'}
                     </td>
                   </tr>

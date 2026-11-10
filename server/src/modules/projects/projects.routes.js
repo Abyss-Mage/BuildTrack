@@ -10,7 +10,8 @@ const router = Router();
 router.use(auth);
 
 router.get('/', getAllProjects);
-router.get('/:id', getProjectById);
+// The list stays open: site forms need it for their dropdowns
+router.get('/:id', authorize('admin', 'accountant'), getProjectById);
 router.post('/', authorize('admin'), validate(createProjectSchema), createProject);
 router.put('/:id', authorize('admin'), validate(updateProjectSchema), updateProject);
 
